@@ -1,0 +1,18 @@
+# Core dependencies for News Intelligence System
+feedparser>=6.0.10
+requests>=2.28.0
+PyYAML>=6.0
+numpy>=1.21.0
+
+# For semantic search (optional but recommended)
+sentence-transformers>=2.2.0
+
+# For clustering (optional)
+scikit-learn>=1.1.0
+
+# For database
+# sqlite3 is built into Python
+
+# For HTML parsing (if needed)
+beautifulsoup4>=4.11.0
+lxml>=4.9.0

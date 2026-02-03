@@ -1,0 +1,82 @@
+# News Sources Configuration
+
+rss_feeds:
+  markets:
+    - name: "Reuters Markets"
+      url: "https://feeds.reuters.com/reuters/businessNews"
+      category: "markets"
+    - name: "Bloomberg Markets" 
+      url: "https://feeds.bloomberg.com/markets/news.rss"
+      category: "markets"
+    - name: "MarketWatch"
+      url: "https://feeds.marketwatch.com/marketwatch/topstories/"
+      category: "markets"
+    - name: "Financial Times"
+      url: "https://www.ft.com/rss/home"
+      category: "markets"
+      
+  crypto:
+    - name: "CoinDesk"
+      url: "https://feeds.feedburner.com/CoinDesk"
+      category: "crypto"
+    - name: "Cointelegraph"
+      url: "https://cointelegraph.com/rss"
+      category: "crypto"
+    - name: "Decrypt"
+      url: "https://decrypt.co/feed"
+      category: "crypto"
+      
+  tech:
+    - name: "TechCrunch"
+      url: "https://techcrunch.com/feed/"
+      category: "tech"
+    - name: "The Verge"
+      url: "https://www.theverge.com/rss/index.xml"
+      category: "tech"
+    - name: "Ars Technica"
+      url: "https://feeds.arstechnica.com/arstechnica/index"
+      category: "tech"
+    - name: "VentureBeat"
+      url: "https://venturebeat.com/feed/"
+      category: "tech"
+      
+  politics:
+    - name: "Reuters Politics"
+      url: "https://feeds.reuters.com/Reuters/PoliticsNews"
+      category: "politics"  
+    - name: "AP Politics"
+      url: "https://feeds.apnews.com/apnews/PoliticalNews"
+      category: "politics"
+    - name: "Politico"
+      url: "https://www.politico.com/rss/politicopicks.xml"
+      category: "politics"
+      
+  security:
+    - name: "Krebs on Security"
+      url: "https://krebsonsecurity.com/feed/"
+      category: "security"
+    - name: "Bleeping Computer"
+      url: "https://www.bleepingcomputer.com/feed/"
+      category: "security"
+    - name: "The Hacker News"
+      url: "https://feeds.feedburner.com/TheHackersNews"
+      category: "security"
+
+# Trends monitoring  
+trends_sources:
+  - name: "Google Trends"
+    url: "https://trends.google.com/trends/trendingsearches/daily/rss?geo=US"
+  - name: "Trends24"
+    url: "https://trends24.in"  # Web scraping required
+    
+# Social monitoring (public timelines)
+social_sources:
+  twitter_lists:
+    - name: "Breaking News"
+      accounts: ["Reuters", "AP", "BBCBreaking", "CNNBreaking"]
+    - name: "Market Movers" 
+      accounts: ["DeItaone", "Newsquawk", "zerohedge", "BesspokeInvest"]
+    - name: "Crypto Leaders"
+      accounts: ["VitalikButerin", "APompliano", "DocumentingBTC"]
+    - name: "AI/Tech"
+      accounts: ["OpenAI", "AnthropicAI", "karpathy", "ylecun"]

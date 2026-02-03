@@ -1,0 +1,89 @@
+# Keywords and Topics for Monitoring
+
+# High priority keywords - immediate alerts
+urgent_keywords:
+  markets:
+    - "market crash"
+    - "circuit breaker" 
+    - "trading halt"
+    - "fed emergency"
+    - "bank failure"
+    - "recession"
+  crypto:
+    - "bitcoin crash"
+    - "defi hack"
+    - "exchange hack"
+    - "crypto ban"
+    - "ethereum merge"
+  politics:
+    - "breaking news"
+    - "impeachment"
+    - "resignation"
+    - "emergency"
+    - "national security"
+  security:
+    - "zero day"
+    - "massive breach"
+    - "ransomware"
+    - "supply chain attack"
+  ai:
+    - "artificial general intelligence"
+    - "agi breakthrough"
+    - "ai safety"
+    - "model leak"
+
+# Medium priority - trend tracking
+trending_keywords:
+  markets:
+    - "earnings"
+    - "ipo"
+    - "merger"
+    - "acquisition"
+    - "dividend"
+    - "stock split"
+    - "federal reserve"
+    - "interest rates"
+  crypto:
+    - "altcoin"
+    - "nft"
+    - "defi"
+    - "web3"
+    - "blockchain"
+    - "mining"
+    - "stablecoin"
+  tech:
+    - "artificial intelligence"
+    - "machine learning"
+    - "startup funding"
+    - "big tech"
+    - "regulation"
+    - "privacy"
+  politics:
+    - "election"
+    - "polling"
+    - "legislation"
+    - "supreme court"
+    - "foreign policy"
+
+# Categories for classification
+categories:
+  - markets
+  - crypto 
+  - tech
+  - politics
+  - security
+  - ai
+  - science
+  - health
+  - climate
+  - international
+
+# Importance scoring weights
+importance_weights:
+  keyword_match_urgent: 10
+  keyword_match_trending: 5
+  source_tier_1: 8  # Reuters, AP, Bloomberg
+  source_tier_2: 6  # TechCrunch, CoinDesk
+  source_tier_3: 3  # Smaller sources
+  social_engagement: 2
+  freshness_bonus: 1
