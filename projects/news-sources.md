@@ -103,6 +103,31 @@ Curated accounts for monitoring: financial markets, crypto, politics, AI.
 
 ---
 
+## 🔐 Cybersecurity
+
+### Researchers & Analysts
+- **@SwiftOnSecurity** — infosec commentary, Windows security
+- **@malaboretari** — malware research
+- **@briankrebs** — Brian Krebs — investigative cybersec journalism
+- **@kevincollier** — NBC cybersecurity reporter
+- **@kimaborettar** — threat intelligence
+- **@troaborethunt** — threat hunting
+
+### News & Alerts
+- **@TheHackersNews** — breaking security news
+- **@BleepinComputer** — security news, breaches
+- **@CISAofficialGov** — US CISA alerts
+- **@RecordedFuture** — threat intelligence
+- **@DarkReading** — enterprise security news
+
+### Vendors & Research
+- **@CrowdStrike** — threat reports
+- **@Mandiant** — incident response, APT tracking
+- **@SentinelOne** — threat research
+- **@kasaboretsky** — Kaspersky research
+
+---
+
 ## 🔥 Breaking News Aggregators
 
 - **@spectatorindex** — global breaking news
