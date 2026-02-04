@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "skills": {
+    "summarize-s523": {
+      "version": "1.0.0",
+      "installedAt": 1770230683834
+    },
+    "xai-plus": {
+      "version": "2.0.2",
+      "installedAt": 1770230702445
+    },
+    "camoufox": {
+      "version": "1.0.0",
+      "installedAt": 1770230705361
+    },
+    "create-plugin": {
+      "version": "0.1.0",
+      "installedAt": 1770230708549
+    }
+  }
+}
