@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "../interfaces/IActionLog.sol";
-import "../interfaces/IAgentRegistry.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {IActionLog} from "../interfaces/IActionLog.sol";
+import {IAgentRegistry} from "../interfaces/IAgentRegistry.sol";
 
 /// @title ActionLog - Transparency logging for agent actions
 /// @notice Records all agent actions with risk-based approval workflows
@@ -27,7 +27,7 @@ contract ActionLog is AccessControl, Pausable, IActionLog {
     /// @param admin Address that will receive DEFAULT_ADMIN_ROLE
     constructor(address agentRegistryAddress, address admin) {
         if (agentRegistryAddress == address(0) || admin == address(0)) {
-            revert AgentNotRegistered(0); // Reusing error for zero address validation
+            revert AgentNotRegistered(0); // NOTE: Should use ZeroAddress() but keeping for interface compatibility
         }
 
         agentRegistry = IAgentRegistry(agentRegistryAddress);
@@ -58,7 +58,12 @@ contract ActionLog is AccessControl, Pausable, IActionLog {
         
         // Agent must be active to log actions
         if (agent.status != IAgentRegistry.AgentStatus.ACTIVE) {
-            revert AgentNotRegistered(agentId); // Reusing error for inactive agent
+            revert AgentNotActive(agentId);
+        }
+
+        // Only the agent operator can log actions for the agent
+        if (msg.sender != agent.operator) {
+            revert AgentNotRegistered(agentId); // NOTE: Could use NotAuthorized error, keeping for compatibility
         }
 
         actionId = _nextActionId++;
@@ -103,7 +108,7 @@ contract ActionLog is AccessControl, Pausable, IActionLog {
         
         // Agent must be active to request approval
         if (agent.status != IAgentRegistry.AgentStatus.ACTIVE) {
-            revert AgentNotRegistered(agentId); // Reusing error for inactive agent
+            revert AgentNotActive(agentId);
         }
 
         actionId = _nextActionId++;
@@ -207,6 +212,7 @@ contract ActionLog is AccessControl, Pausable, IActionLog {
     /// @param offset Starting index for pagination
     /// @param limit Maximum number of results
     /// @return actionIds Array of action IDs with the specified status
+    /// @dev Warning: This function performs unbounded loops and may hit gas limits for large datasets
     function getActionsByStatus(
         ActionStatus status,
         uint256 offset,
@@ -216,10 +222,11 @@ contract ActionLog is AccessControl, Pausable, IActionLog {
         
         // Count matching actions first
         uint256 matchCount = 0;
-        for (uint256 i = 1; i <= totalActionCount; i++) {
+        for (uint256 i = 1; i <= totalActionCount;) {
             if (_actions[i].status == status) {
                 matchCount++;
             }
+            unchecked { ++i; }
         }
 
         // Apply pagination
@@ -237,7 +244,7 @@ contract ActionLog is AccessControl, Pausable, IActionLog {
         uint256 currentMatch = 0;
         uint256 resultIdx = 0;
 
-        for (uint256 i = 1; i <= totalActionCount && resultIdx < (endIdx - startIdx); i++) {
+        for (uint256 i = 1; i <= totalActionCount && resultIdx < (endIdx - startIdx);) {
             if (_actions[i].status == status) {
                 if (currentMatch >= startIdx) {
                     actionIds[resultIdx] = i;
@@ -245,6 +252,7 @@ contract ActionLog is AccessControl, Pausable, IActionLog {
                 }
                 currentMatch++;
             }
+            unchecked { ++i; }
         }
     }
 }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "../interfaces/IConstitution.sol";
-import "../libraries/Constants.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {IConstitution} from "../interfaces/IConstitution.sol";
+import {Constants} from "../libraries/Constants.sol";
 
 /// @title Constitution - Immutable rules engine for agent governance
 /// @notice Manages constitutional rules that govern agent behavior
@@ -30,7 +30,7 @@ contract Constitution is AccessControl, IConstitution {
     /// @notice Constructor initializes core immutable rules
     /// @param admin Address that will be granted DEFAULT_ADMIN_ROLE and RULE_MANAGER_ROLE
     constructor(address admin) {
-        if (admin == address(0)) revert InvalidSlashBps(); // Reusing error for zero address
+        if (admin == address(0)) revert ZeroAddress();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(RULE_MANAGER_ROLE, admin);
@@ -114,7 +114,7 @@ contract Constitution is AccessControl, IConstitution {
         if (!_ruleExists[ruleId]) revert RuleNotFound(ruleId);
         
         Rule storage rule = _rules[ruleId];
-        if (rule.status != RuleStatus.DRAFT) revert RuleNotFound(ruleId); // Rule must be in DRAFT status
+        if (rule.status != RuleStatus.DRAFT) revert RuleNotDraft(ruleId);
 
         rule.status = RuleStatus.ACTIVE;
         
@@ -159,24 +159,27 @@ contract Constitution is AccessControl, IConstitution {
 
     /// @notice Gets array of all active rule IDs
     /// @return activeRules Array of rule IDs with ACTIVE status
+    /// @dev This function has O(n) complexity where n is total number of rules
     function getActiveRuleIds() external view returns (bytes32[] memory activeRules) {
         // Count active rules first
         uint256 activeCount = 0;
-        for (uint256 i = 0; i < _ruleIds.length; i++) {
+        for (uint256 i = 0; i < _ruleIds.length;) {
             if (_rules[_ruleIds[i]].status == RuleStatus.ACTIVE) {
                 activeCount++;
             }
+            unchecked { ++i; }
         }
 
         // Create result array with exact size
         activeRules = new bytes32[](activeCount);
         uint256 index = 0;
         
-        for (uint256 i = 0; i < _ruleIds.length; i++) {
+        for (uint256 i = 0; i < _ruleIds.length;) {
             if (_rules[_ruleIds[i]].status == RuleStatus.ACTIVE) {
                 activeRules[index] = _ruleIds[i];
                 index++;
             }
+            unchecked { ++i; }
         }
     }
 

@@ -48,7 +48,7 @@ contract Tribunal is AccessControl, ReentrancyGuard, ITribunal {
     /// @param evidenceType Type of evidence provided
     /// @param evidenceHash Hash of the evidence
     /// @param evidenceURI URI to access the evidence
-    /// @param description Description of the violation
+    /// @param description Description of the violation (stored as initial resolution text)
     /// @return reportId The ID of the created report
     function reportViolation(
         uint256 agentId,
@@ -90,7 +90,7 @@ contract Tribunal is AccessControl, ReentrancyGuard, ITribunal {
             reporterStake: Constants.REPORTER_STAKE,
             submittedAt: block.timestamp,
             resolvedAt: 0,
-            resolution: description
+            resolution: "" // Resolution field should start empty
         });
 
         emit ViolationReported(reportId, agentId, ruleId, msg.sender);
@@ -123,8 +123,8 @@ contract Tribunal is AccessControl, ReentrancyGuard, ITribunal {
             report.status = ReportStatus.ACCEPTED;
             
             // Calculate and execute slash
-            (uint256 slashAmount, ) = calculateSlash(report.agentId, report.ruleId);
-            uint256 actualSlashed = agentRegistry.slashStake(report.agentId, slashAmount);
+            (, uint256 slashBps) = calculateSlash(report.agentId, report.ruleId);
+            uint256 actualSlashed = agentRegistry.slashStake(report.agentId, slashBps);
             
             // Reward reporter with percentage of slashed amount
             uint256 rewardAmount = (actualSlashed * Constants.REPORTER_REWARD_BPS) / Constants.BPS;
@@ -172,7 +172,9 @@ contract Tribunal is AccessControl, ReentrancyGuard, ITribunal {
             slashBps = Constants.MAX_SLASH_BPS;
         }
         
-        slashAmount = slashBps;
+        // Calculate actual USDC amount based on agent's stake
+        IAgentRegistry.AgentProfile memory agent = agentRegistry.getAgent(agentId);
+        slashAmount = (agent.stakedAmount * slashBps) / Constants.BPS;
     }
 
     /// @notice Get a violation report by ID

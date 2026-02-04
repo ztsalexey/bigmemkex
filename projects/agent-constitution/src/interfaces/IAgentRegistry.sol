@@ -30,6 +30,7 @@ interface IAgentRegistry {
     error NotAgentOperator(uint256 agentId, address caller);
     error InvalidTier();
     error AgentAlreadyTerminated(uint256 agentId);
+    error ZeroAddress();
 
     function registerAgent(
         address operator,

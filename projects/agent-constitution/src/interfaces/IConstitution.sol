@@ -24,9 +24,11 @@ interface IConstitution {
 
     error RuleAlreadyExists(bytes32 ruleId);
     error RuleNotFound(bytes32 ruleId);
+    error RuleNotDraft(bytes32 ruleId);
     error RuleIsImmutable(bytes32 ruleId);
     error InvalidSlashBps();
     error RuleNotActive(bytes32 ruleId);
+    error ZeroAddress();
 
     function proposeRule(
         bytes32 ruleId,

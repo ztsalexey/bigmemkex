@@ -40,20 +40,20 @@ contract AgentRegistry is AccessControl, Pausable, ReentrancyGuard, IAgentRegist
     error AgentNotBound(uint256 agentId);
 
     /// @notice Deploy with ERC-8004 Identity Registry + USDC addresses
-    /// @param usdc_ USDC token (6 decimals)
-    /// @param identity_ ERC-8004 IdentityRegistry singleton address
-    /// @param admin_ Admin address for role management
-    constructor(address usdc_, address identity_, address admin_) {
-        if (usdc_ == address(0) || identity_ == address(0) || admin_ == address(0)) {
-            revert InsufficientStake(0, 0);
+    /// @param USDC_ USDC token (6 decimals)
+    /// @param IDENTITY_ ERC-8004 IdentityRegistry singleton address
+    /// @param ADMIN_ Admin address for role management
+    constructor(address USDC_, address IDENTITY_, address ADMIN_) {
+        if (USDC_ == address(0) || IDENTITY_ == address(0) || ADMIN_ == address(0)) {
+            revert ZeroAddress();
         }
 
-        USDC = IERC20(usdc_);
-        IDENTITY = IIdentityRegistry8004(identity_);
+        USDC = IERC20(USDC_);
+        IDENTITY = IIdentityRegistry8004(IDENTITY_);
 
-        _grantRole(DEFAULT_ADMIN_ROLE, admin_);
-        _grantRole(ADMIN_ROLE, admin_);
-        _grantRole(TRIBUNAL_ROLE, admin_);
+        _grantRole(DEFAULT_ADMIN_ROLE, ADMIN_);
+        _grantRole(ADMIN_ROLE, ADMIN_);
+        _grantRole(TRIBUNAL_ROLE, ADMIN_);
     }
 
     // ── Registration ───────────────────────────────────────────────
@@ -73,7 +73,7 @@ contract AgentRegistry is AccessControl, Pausable, ReentrancyGuard, IAgentRegist
         CapabilityTier tier,
         uint256 stakeAmount
     ) external nonReentrant whenNotPaused returns (uint256 agentId) {
-        if (operator == address(0)) revert InsufficientStake(0, 0);
+        if (operator == address(0)) revert ZeroAddress();
 
         uint256 required = minimumStake(tier);
         if (stakeAmount < required) {

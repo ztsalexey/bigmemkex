@@ -302,10 +302,10 @@ contract AgentRegistryTest is Test {
     }
 
     function test_ZeroAddressValidation() public {
-        vm.expectRevert(abi.encodeWithSelector(IAgentRegistry.InsufficientStake.selector, 0, 0));
+        vm.expectRevert(abi.encodeWithSelector(IAgentRegistry.ZeroAddress.selector));
         new AgentRegistry(address(0), address(identity), admin);
 
-        vm.expectRevert(abi.encodeWithSelector(IAgentRegistry.InsufficientStake.selector, 0, 0));
+        vm.expectRevert(abi.encodeWithSelector(IAgentRegistry.ZeroAddress.selector));
         new AgentRegistry(address(usdc), address(0), admin);
     }
 

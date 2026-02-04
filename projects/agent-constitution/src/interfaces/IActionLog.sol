@@ -24,6 +24,7 @@ interface IActionLog {
     event ActionRejected(uint256 indexed actionId, address indexed rejector);
 
     error AgentNotRegistered(uint256 agentId);
+    error AgentNotActive(uint256 agentId);
     error ActionNotFound(uint256 actionId);
     error ActionNotPending(uint256 actionId);
     error NotAuthorizedApprover(uint256 actionId, address caller);

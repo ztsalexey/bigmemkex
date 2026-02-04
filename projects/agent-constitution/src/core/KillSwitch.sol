@@ -2,7 +2,6 @@
 pragma solidity 0.8.28;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-
 import {IKillSwitch} from "../interfaces/IKillSwitch.sol";
 import {IAgentRegistry} from "../interfaces/IAgentRegistry.sol";
 
@@ -29,6 +28,11 @@ contract KillSwitch is AccessControl, IKillSwitch {
     /// @param agentId The ID of the agent to halt
     /// @param reason The reason for halting
     function haltAgent(uint256 agentId, HaltReason reason) external onlyRole(EMERGENCY_ROLE) {
+        // Validate agent exists
+        if (!agentRegistry.agentExists(agentId)) {
+            revert AgentAlreadyHalted(agentId); // Reusing error for simplicity
+        }
+
         if (_haltedAgents[agentId]) {
             revert AgentAlreadyHalted(agentId);
         }
@@ -42,6 +46,11 @@ contract KillSwitch is AccessControl, IKillSwitch {
     /// @notice Unhalt an individual agent
     /// @param agentId The ID of the agent to unhalt
     function unhaltAgent(uint256 agentId) external onlyRole(EMERGENCY_ROLE) {
+        // Validate agent exists
+        if (!agentRegistry.agentExists(agentId)) {
+            revert AgentNotHalted(agentId); // Reusing error for simplicity
+        }
+
         if (!_haltedAgents[agentId]) {
             revert AgentNotHalted(agentId);
         }
@@ -90,8 +99,8 @@ contract KillSwitch is AccessControl, IKillSwitch {
 
     /// @notice Check if an agent can operate
     /// @param agentId The agent ID to check
-    /// @return True if the agent can operate (not halted and no global emergency)
+    /// @return True if the agent can operate (exists, not halted, and no global emergency)
     function canOperate(uint256 agentId) external view returns (bool) {
-        return !_haltedAgents[agentId] && !_globalEmergency;
+        return agentRegistry.agentExists(agentId) && !_haltedAgents[agentId] && !_globalEmergency;
     }
 }

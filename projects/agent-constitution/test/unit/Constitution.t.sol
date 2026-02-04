@@ -280,8 +280,8 @@ contract ConstitutionTest is Test {
         constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.LOW, 500);
         constitution.activateRule(TEST_RULE_1);
 
-        // Try to activate it again
-        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleNotFound.selector, TEST_RULE_1));
+        // Try to activate it again — should fail with RuleNotDraft
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleNotDraft.selector, TEST_RULE_1));
         constitution.activateRule(TEST_RULE_1);
         vm.stopPrank();
     }
@@ -300,7 +300,7 @@ contract ConstitutionTest is Test {
     }
 
     function test_ZeroAddressInConstructor() public {
-        vm.expectRevert(abi.encodeWithSelector(IConstitution.InvalidSlashBps.selector));
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.ZeroAddress.selector));
         new Constitution(address(0));
     }
 
