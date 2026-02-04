@@ -8,6 +8,7 @@ import "../../src/core/ActionLog.sol";
 import "../../src/core/Tribunal.sol";
 import "../../src/core/KillSwitch.sol";
 import "../../src/mocks/MockUSDC.sol";
+import "../../src/mocks/MockIdentityRegistry.sol";
 import "../../src/libraries/Constants.sol";
 
 /// @title Full system integration test
@@ -18,6 +19,7 @@ contract FullWorkflowTest is Test {
     Tribunal public tribunal;
     KillSwitch public killSwitch;
     MockUSDC public usdc;
+    MockIdentityRegistry public identity;
 
     address public admin = makeAddr("admin");
     address public judge = makeAddr("judge");
@@ -29,7 +31,8 @@ contract FullWorkflowTest is Test {
     function setUp() public {
         usdc = new MockUSDC();
         constitution = new Constitution(admin);
-        registry = new AgentRegistry(address(usdc), address(constitution), admin);
+        identity = new MockIdentityRegistry();
+        registry = new AgentRegistry(address(usdc), address(identity), admin);
         actionLog = new ActionLog(address(registry), admin);
         tribunal = new Tribunal(address(constitution), address(registry), address(usdc));
         killSwitch = new KillSwitch(address(registry));

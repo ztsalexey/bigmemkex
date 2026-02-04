@@ -6,6 +6,7 @@ import "../../src/core/Tribunal.sol";
 import "../../src/core/Constitution.sol";
 import "../../src/core/AgentRegistry.sol";
 import "../../src/mocks/MockUSDC.sol";
+import "../../src/mocks/MockIdentityRegistry.sol";
 import "../../src/libraries/Constants.sol";
 
 contract TribunalTest is Test {
@@ -13,6 +14,7 @@ contract TribunalTest is Test {
     Constitution public constitution;
     AgentRegistry public agentRegistry;
     MockUSDC public usdc;
+    MockIdentityRegistry public identity;
 
     address public admin = makeAddr("admin");
     address public judge = makeAddr("judge");
@@ -34,7 +36,8 @@ contract TribunalTest is Test {
         // Deploy contracts
         usdc = new MockUSDC();
         constitution = new Constitution(admin);
-        agentRegistry = new AgentRegistry(address(usdc), address(constitution), admin);
+        identity = new MockIdentityRegistry();
+        agentRegistry = new AgentRegistry(address(usdc), address(identity), admin);
         tribunal = new Tribunal(address(constitution), address(agentRegistry), address(usdc));
 
         // Grant JUDGE_ROLE to judge address on tribunal
