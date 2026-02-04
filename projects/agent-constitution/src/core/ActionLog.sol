@@ -212,11 +212,11 @@ contract ActionLog is AccessControl, Pausable, IActionLog {
         uint256 offset,
         uint256 limit
     ) external view returns (uint256[] memory actionIds) {
-        uint256 totalActions = _nextActionId - 1;
+        uint256 totalActionCount = _nextActionId - 1;
         
         // Count matching actions first
         uint256 matchCount = 0;
-        for (uint256 i = 1; i <= totalActions; i++) {
+        for (uint256 i = 1; i <= totalActionCount; i++) {
             if (_actions[i].status == status) {
                 matchCount++;
             }
@@ -237,7 +237,7 @@ contract ActionLog is AccessControl, Pausable, IActionLog {
         uint256 currentMatch = 0;
         uint256 resultIdx = 0;
 
-        for (uint256 i = 1; i <= totalActions && resultIdx < (endIdx - startIdx); i++) {
+        for (uint256 i = 1; i <= totalActionCount && resultIdx < (endIdx - startIdx); i++) {
             if (_actions[i].status == status) {
                 if (currentMatch >= startIdx) {
                     actionIds[resultIdx] = i;
