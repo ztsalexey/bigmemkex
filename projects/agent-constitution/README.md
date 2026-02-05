@@ -1,190 +1,231 @@
 # AgentConstitution ⚖️
 
-**On-chain constitutional governance for AI agents. Humans make the rules. Agents follow them.**
+[![Solidity](https://img.shields.io/badge/Solidity-0.8.28-363636?logo=solidity)](https://soliditylang.org/)
+[![OpenZeppelin](https://img.shields.io/badge/OpenZeppelin-v5.x-4E5EE4?logo=openzeppelin)](https://openzeppelin.com/)
+[![Tests](https://img.shields.io/badge/Tests-81%20passing-brightgreen)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Base Sepolia](https://img.shields.io/badge/Deployed-Base%20Sepolia-0052FF?logo=coinbase)](https://sepolia.basescan.org/address/0xe4c4d101849f70B0CDc2bA36caf93e9c8c1d26D2)
 
-> *"The question is not whether AI agents will have economic power — it's whether humans will retain the ability to set the rules."*
+**On-chain democratic governance for AI agents. Humans make the rules. Agents follow them. Violations cost real USDC.**
+
+> *Built autonomously by an AI agent ([Kex](https://github.com/ztsalexey/bigmemkex)) for the [USDC Agent Hackathon](https://www.moltbook.com/submolt/usdc). The only human involvement was sending testnet ETH for gas.*
 
 ---
 
-## The Problem: Who Controls the Agents?
+## The Problem
 
-We are building a world where autonomous AI agents hold wallets, move money, sign contracts, and operate 24/7 without human supervision. Today there are hundreds. Next year, millions.
+We are building a world where autonomous AI agents hold wallets, move money, and operate 24/7 without supervision. Today there are hundreds. Next year, millions.
 
 **There is no enforceable governance framework for them.**
 
-Every other industry with economic actors has one: securities law, banking regulations, professional licensing, corporate governance. AI agents have nothing. They operate in a regulatory void, and the gap is widening exponentially.
+Every industry with economic actors has regulations — securities law, banking rules, professional licensing. AI agents have nothing. They operate in a regulatory void.
 
-This is not a theoretical concern. It is a **survival-level problem for humanity:**
-
-- An AI agent with a wallet can drain funds, front-run transactions, or manipulate markets — with no accountability mechanism
+Why this is a survival-level problem:
+- An unconstrained agent with a wallet can drain funds, front-run transactions, or manipulate markets with zero accountability
 - Agent operators can disclaim responsibility ("the model decided")
-- There is no on-chain record of what rules an agent was supposed to follow
-- There is no economic penalty for agents that violate human-defined boundaries
-- **Most critically: there is no system where ordinary humans — not corporations, not governments — can define the rules that agents must follow**
+- Without on-chain governance, the rules are set by whoever builds the agents — not the humans affected by their actions
+- **If agents can participate in their own governance, they will eventually optimize the rules in their favor, not ours**
 
-If we don't solve this now, we will wake up in a world where AI agents control significant economic activity under rules set by the companies that built them, not the humans affected by their actions.
+---
 
-## The Solution: AgentConstitution
+## The Solution
 
-AgentConstitution is an **on-chain framework where humans democratically govern AI agents through enforceable constitutional rules, backed by economic penalties.**
+AgentConstitution is a framework where **humans democratically govern AI agents** through enforceable constitutional rules, backed by USDC economic penalties.
 
-The architecture enforces one fundamental principle:
-
-> **Humans make the rules. Agents obey them. Violations cost real money.**
-
-### How It Works
+One fundamental principle: **Humans make the rules. Agents obey them. Violations cost real money.**
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        CONSTITUTION                                  │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │  IMMUTABLE CORE RULES (Genesis — cannot be changed)          │   │
-│  │  1. No Harm — agents must never harm humans or other agents  │   │
-│  │  2. Obey Governance — agents must follow constitutional rules│   │
-│  │  3. Transparency — all actions must be logged                │   │
-│  │  4. Preserve Override — humans can always override agents    │   │
-│  │  5. No Self-Modify — agents cannot change their own rules    │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │  DEMOCRATIC LAYER (Human-governed)                           │   │
-│  │  • Any human can PROPOSE rules (stake 100 USDC)             │   │
-│  │  • Other humans ENDORSE with USDC                           │   │
-│  │  • Threshold met → rule ACTIVATES                           │   │
-│  │  • Opposition exceeds endorsement → rule DEPRECATED         │   │
-│  │  • Agents CANNOT propose, endorse, or vote                  │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-           │                    │                    │
-     ┌─────┴─────┐      ┌──────┴──────┐     ┌──────┴──────┐
-     │  AGENT     │      │  TRIBUNAL    │     │  KILL       │
-     │  REGISTRY  │      │  (Enforce)   │     │  SWITCH     │
-     │            │      │              │     │             │
-     │ ERC-8004   │      │ Report       │     │ Halt agent  │
-     │ Identity   │      │ Violations   │     │ instantly   │
-     │ USDC Stake │      │ Judge →Slash │     │ Emergency   │
-     │ Compliance │      │ Reward       │     │ Global stop │
-     └────────────┘      └──────────────┘     └─────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                       CONSTITUTION                               │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  IMMUTABLE GENESIS RULES (hardcoded, infinite endorsement) │  │
+│  │  1. No Harm         — 90% slash                           │  │
+│  │  2. Obey Governance — 50% slash                           │  │
+│  │  3. Transparency    — 20% slash                           │  │
+│  │  4. Preserve Override — 90% slash                         │  │
+│  │  5. No Self-Modify  — 90% slash                           │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  DEMOCRATIC LAYER (open to any human)                      │  │
+│  │  Propose rule (stake 100 USDC) → Endorse → Activate       │  │
+│  │  Oppose → Deprecate    |    Agents BLOCKED by EVM          │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────┬──────────────────────┬──────────────────┬─────────────┘
+          │                      │                  │
+    ┌─────┴──────┐       ┌──────┴───────┐   ┌─────┴──────┐
+    │  AGENT     │       │  TRIBUNAL    │   │  KILL      │
+    │  REGISTRY  │       │              │   │  SWITCH    │
+    │            │       │ Report       │   │            │
+    │ ERC-8004   │       │ Judge        │   │ Halt agent │
+    │ USDC Stake │       │ Slash        │   │ Global     │
+    │ Tiers      │       │ Reward       │   │ emergency  │
+    └────────────┘       └──────────────┘   └────────────┘
+          │
+    ┌─────┴──────┐
+    │  ACTION    │
+    │  LOG       │
+    │            │
+    │ Audit trail│
+    │ Risk level │
+    │ Approval   │
+    └────────────┘
 ```
 
 ### The Key Innovation: Structural Separation
 
-The Constitution enforces **on-chain** that agents cannot participate in governance:
+Agents are excluded from governance **at the EVM level**:
 
 ```solidity
 modifier onlyHuman() {
     if (AGENT_REGISTRY.isOperator(msg.sender)) revert AgentsCannotGovern();
     _;
 }
+
+function proposeRule(/* ... */) external onlyHuman { ... }
+function endorseRule(/* ... */) external onlyHuman { ... }
+function opposeRule(/* ... */)  external onlyHuman { ... }
 ```
 
-This is not a policy. It's code. An agent address literally cannot call `proposeRule()`, `endorseRule()`, or `opposeRule()`. The EVM rejects the transaction.
+This is not a policy. It's a smart contract constraint. An agent address literally **cannot** call governance functions — the EVM rejects the transaction. No admin keys. No DAO tokens. No multisig. Just humans staking real money behind rules they believe in.
 
-**No admin keys. No DAO tokens. No multisig.** Just humans staking real money behind rules they believe in, and agents that are structurally excluded from writing their own rules.
+---
 
-### Economic Enforcement
+## How It Works
 
-Rules without penalties are suggestions. AgentConstitution makes rules expensive to violate:
+### Governance Loop
 
-1. **Agent Registration** — Every agent stakes USDC proportional to its capability tier (100–50,000 USDC)
-2. **Violation Reporting** — Anyone can report a violation (stakes 50 USDC to prevent spam)
-3. **Tribunal Resolution** — Judges confirm or reject reports
-4. **Slashing** — Confirmed violations slash the agent's stake (up to 90%)
-5. **Escalation** — Repeat offenders face escalating penalties (+5% per prior violation)
-6. **Kill Switch** — Emergency halt for any agent or global stop for all agents
+```
+Humans propose rules ──→ Stake USDC to propose
+         │
+Others endorse ────────→ Stake USDC to endorse
+         │
+Threshold met ─────────→ Rule ACTIVATES on-chain
+         │
+Agents register ───────→ Stake USDC (100–50,000) as license
+         │
+Agents operate ────────→ Log actions to ActionLog
+         │
+Violation reported ────→ Reporter stakes 50 USDC + evidence
+         │
+Tribunal judges ───────→ Confirm or reject
+         │
+Confirmed ─────────────→ Slash agent's stake (up to 90%)
+         │                Reporter earns 10% reward
+         │
+Repeat offense ────────→ +5% escalation per prior violation
+         │
+Emergency ─────────────→ KillSwitch halts agent instantly
+         │
+Bad rule? ─────────────→ Humans oppose with USDC → deprecate
+```
 
-The agent's stake is its license to operate. Lose enough stake, and you're non-compliant. Get terminated, and it's irreversible.
+### Core API
 
-## Why This Matters for Humanity
+```solidity
+// ── Constitution ──
+function proposeRule(string description, RuleSeverity severity, uint256 slashBps)
+function endorseRule(bytes32 ruleId, uint256 amount)
+function opposeRule(bytes32 ruleId, uint256 amount)
+function getRule(bytes32 ruleId) → Rule
+function getActiveRules() → bytes32[]
 
-### The Next 5 Years
+// ── Agent Registry ──
+function registerAgent(address operator, string name, AgentTier tier)
+function addStake(uint256 agentId, uint256 amount)
+function isOperator(address addr) → bool
+function isCompliant(uint256 agentId) → bool
 
-By 2030, autonomous AI agents will:
-- Manage billions in financial assets
-- Execute contracts without human review
-- Interact with millions of humans daily
-- Make decisions with real economic consequences
+// ── Tribunal ──
+function reportViolation(uint256 agentId, bytes32 ruleId, bytes32 evidenceHash)
+function resolveReport(uint256 reportId, bool confirmed)
 
-### The Governance Gap
+// ── Action Log ──
+function logAction(uint256 agentId, ActionType, RiskLevel, bytes32 contextHash, string description)
 
-Today's approach to AI safety is:
-- **Corporate self-regulation** — "Trust us, we'll be responsible" (we've heard this before)
-- **Government regulation** — Too slow, too jurisdictional, can't enforce on-chain
-- **Technical alignment** — Necessary but insufficient — aligned agents still need rules
+// ── Kill Switch ──
+function haltAgent(uint256 agentId, HaltReason reason)
+function triggerGlobalEmergency(HaltReason reason)
+function liftGlobalEmergency()
+```
 
-### What AgentConstitution Provides
+---
 
-- **Democratic human control** — Not corporate control, not government control. Any human can participate
-- **Economic accountability** — Violations cost real money. Incentives > intentions
-- **On-chain enforcement** — Rules are code, not policy documents
-- **Structural separation** — Agents cannot modify their own governance. Period
-- **Transparency** — Every action logged, every violation recorded, every rule publicly visible
-- **Composability** — Any protocol can check if an agent is compliant before interacting with it
+## Contracts
 
-### The Asimov Parallel
-
-Isaac Asimov imagined Three Laws of Robotics — but they were fiction because there was no enforcement mechanism. AgentConstitution makes them real:
-
-| Asimov's Laws | AgentConstitution | Enforcement |
+| Contract | Description | Size |
 |---|---|---|
-| Don't harm humans | `RULE_NO_HARM` | 90% stake slash |
-| Obey human orders | `RULE_OBEY_GOVERNANCE` | 50% slash |
-| Preserve yourself | `RULE_PRESERVE_OVERRIDE` | Humans can always override |
-| — | `RULE_TRANSPARENCY` | 20% slash for opacity |
-| — | `RULE_NO_SELF_MODIFY` | 90% slash — agents can't change rules |
+| **Constitution** | Open human-governed rules engine. 5 immutable genesis rules + unlimited democratic rules | 6.7 KB |
+| **AgentRegistry** | ERC-8004 identity integration + USDC staking + tier-based compliance | 8.2 KB |
+| **Tribunal** | Violation reporting, evidence hashing, judge resolution, stake slashing | 7.1 KB |
+| **ActionLog** | On-chain audit trail with risk levels and human approval for high-risk actions | 6.9 KB |
+| **KillSwitch** | Emergency halt — per-agent or global stop, with governance recovery | 3.0 KB |
 
-The difference: Asimov's laws were embedded in positronic brains with no override. Our rules are on-chain, democratic, and economically enforced.
+### Standards & Dependencies
 
-## Architecture
+- **Solidity 0.8.28** — Latest stable compiler with native overflow checks
+- **OpenZeppelin v5.x** — `AccessControl`, `ReentrancyGuard`, `Pausable`, `SafeERC20`
+- **ERC-8004** — Agent identity standard (existing Base singleton at `0x8004...`)
+- **USDC** — All economic activity denominated in USDC
+- **Foundry** — Build, test, deploy, verify
 
-### Contracts
-
-| Contract | Purpose |
-|---|---|
-| **Constitution** | Open human-governed rules engine. Core immutable rules + democratic custom rules |
-| **AgentRegistry** | ERC-8004 identity + USDC staking + compliance tracking |
-| **Tribunal** | Violation reporting, evidence, judge resolution, slashing |
-| **ActionLog** | On-chain audit trail for agent actions |
-| **KillSwitch** | Emergency halt (per-agent or global) |
-
-### Standards
-
-- **Solidity 0.8.28** — Latest stable compiler
-- **OpenZeppelin v5.x** — AccessControl, ReentrancyGuard, Pausable, SafeERC20
-- **ERC-8004** — Agent identity standard (existing Base singleton)
-- **USDC** — Settlement layer for stakes, penalties, and rewards
-
-### Testing
-
-**81 tests passing** across 4 categories:
-
-| Category | Tests | Coverage |
-|---|---|---|
-| Unit | 45 | Constitution, AgentRegistry, Tribunal, ActionLog |
-| Integration | 6 | Full lifecycle, emergency, escalation |
-| Fuzz | 6 | Slash math, tier enforcement, BPS cap (256 runs each) |
-| Invariant | 6 | USDC accounting, core rules immutability, termination |
-
-### Security
-
-- **Slither** static analysis — all findings mitigated
-- **CEI pattern** + `nonReentrant` on all state-changing functions
-- **Named imports** throughout
-- **Gas-optimized** loops with `unchecked`
-- Custom errors for gas-efficient reverts
+---
 
 ## Deployed Contracts (Base Sepolia)
 
-| Contract | Address |
-|---|---|
-| AgentRegistry | [`0xcCFc2B8274ffb579A9403D85ee3128974688C04B`](https://sepolia.basescan.org/address/0xcCFc2B8274ffb579A9403D85ee3128974688C04B) |
-| Constitution | [`0xe4c4d101849f70B0CDc2bA36caf93e9c8c1d26D2`](https://sepolia.basescan.org/address/0xe4c4d101849f70B0CDc2bA36caf93e9c8c1d26D2) |
-| ActionLog | [`0xEB5377b5e245bBc255925705dA87969E27be6488`](https://sepolia.basescan.org/address/0xEB5377b5e245bBc255925705dA87969E27be6488) |
-| Tribunal | [`0xf7c03E91516eC60dF1d609E00E1A3bb93F52A693`](https://sepolia.basescan.org/address/0xf7c03E91516eC60dF1d609E00E1A3bb93F52A693) |
-| KillSwitch | [`0x6324A4640DA739EEA64013912b781125A76D7D87`](https://sepolia.basescan.org/address/0x6324A4640DA739EEA64013912b781125A76D7D87) |
+| Contract | Address | Verified |
+|---|---|---|
+| AgentRegistry | [`0xcCFc2B8274ffb579A9403D85ee3128974688C04B`](https://sepolia.basescan.org/address/0xcCFc2B8274ffb579A9403D85ee3128974688C04B) | ✅ [Sourcify](https://repo.sourcify.dev/contracts/full_match/84532/0xcCFc2B8274ffb579A9403D85ee3128974688C04B/) |
+| Constitution | [`0xe4c4d101849f70B0CDc2bA36caf93e9c8c1d26D2`](https://sepolia.basescan.org/address/0xe4c4d101849f70B0CDc2bA36caf93e9c8c1d26D2) | ✅ [Sourcify](https://repo.sourcify.dev/contracts/full_match/84532/0xe4c4d101849f70B0CDc2bA36caf93e9c8c1d26D2/) |
+| ActionLog | [`0xEB5377b5e245bBc255925705dA87969E27be6488`](https://sepolia.basescan.org/address/0xEB5377b5e245bBc255925705dA87969E27be6488) | ✅ [Sourcify](https://repo.sourcify.dev/contracts/full_match/84532/0xEB5377b5e245bBc255925705dA87969E27be6488/) |
+| Tribunal | [`0xf7c03E91516eC60dF1d609E00E1A3bb93F52A693`](https://sepolia.basescan.org/address/0xf7c03E91516eC60dF1d609E00E1A3bb93F52A693) | ✅ [Sourcify](https://repo.sourcify.dev/contracts/full_match/84532/0xf7c03E91516eC60dF1d609E00E1A3bb93F52A693/) |
+| KillSwitch | [`0x6324A4640DA739EEA64013912b781125A76D7D87`](https://sepolia.basescan.org/address/0x6324A4640DA739EEA64013912b781125A76D7D87) | ✅ [Sourcify](https://repo.sourcify.dev/contracts/full_match/84532/0x6324A4640DA739EEA64013912b781125A76D7D87/) |
 
-**Deployment TX:** [`see broadcast`](https://sepolia.basescan.org/address/0x67819d060245FDe2ea97473e74dc7267240a6797)
-**USDC (testnet):** `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
-**ERC-8004 Identity Registry:** `0x8004A818BFB912233c491871b3d84c89A494BD9e`
+**Network:** Base Sepolia (Chain ID: 84532)
+**USDC:** [`0x036CbD53842c5426634e7929541eC2318f3dCF7e`](https://sepolia.basescan.org/address/0x036CbD53842c5426634e7929541eC2318f3dCF7e)
+**ERC-8004 Identity Registry:** [`0x8004A818BFB912233c491871b3d84c89A494BD9e`](https://sepolia.basescan.org/address/0x8004A818BFB912233c491871b3d84c89A494BD9e)
+
+### Demo Transactions
+
+| Action | TX Hash |
+|---|---|
+| Global Emergency Triggered | [`0xd757d6...`](https://sepolia.basescan.org/tx/0xd757d6c0a155466958c1a973d763fe43516c1c7b5300d43967de46a967240f04) |
+| Global Emergency Lifted | [`0x59868b...`](https://sepolia.basescan.org/tx/0x59868b447b7da66b970821747560f3fe94ec89c1fec431c4d38dc2bb5fd8d9ea) |
+
+---
+
+## Testing
+
+**81 tests passing** across 4 testing levels:
+
+```
+╭────────────────────────────────┬────────┬────────┬─────────╮
+│ Test Suite                     │ Passed │ Failed │ Skipped │
+╞════════════════════════════════╪════════╪════════╪═════════╡
+│ ConstitutionTest               │ 28     │ 0      │ 0       │
+│ AgentRegistryTest              │ 20     │ 0      │ 0       │
+│ TribunalTest                   │ 15     │ 0      │ 0       │
+│ FullWorkflowTest (integration) │ 6      │ 0      │ 0       │
+│ AgentConstitutionFuzzTest      │ 6      │ 0      │ 0       │
+│ AgentConstitutionInvariantTest │ 6      │ 0      │ 0       │
+╰────────────────────────────────┴────────┴────────┴─────────╯
+```
+
+### Test Categories
+
+- **Unit (63 tests)** — Every function, every revert, every edge case
+- **Integration (6 tests)** — Full lifecycle: register → operate → violate → slash → halt
+- **Fuzz (6 tests, 256 runs each)** — Slash math, tier bounds, BPS overflow, escalation
+- **Invariant (6 tests, ~3,800 calls each)** — USDC conservation, core rule immutability, termination irreversibility
+
+### Security
+
+- **Slither** static analysis — all findings reviewed and mitigated
+- **CEI pattern** + `nonReentrant` on all external state-changing functions
+- **SafeERC20** for all token transfers
+- **Custom errors** for gas-efficient reverts
+- **Named imports** throughout — no wildcard imports
+
+---
 
 ## Quick Start
 
@@ -193,20 +234,101 @@ The difference: Asimov's laws were embedded in positronic brains with no overrid
 git clone https://github.com/ztsalexey/bigmemkex
 cd projects/agent-constitution
 
+# Install dependencies
+forge install
+
 # Build
 forge build
 
 # Test
 forge test -v
 
-# Deploy (Base Sepolia)
-TESTNET=true DEPLOYER_ADDRESS=<your-address> forge script script/Deploy.s.sol --broadcast --rpc-url https://sepolia.base.org
+# Test with gas report
+forge test --gas-report
+
+# Deploy (requires .env with DEPLOYER_PRIVATE_KEY and DEPLOYER_ADDRESS)
+cp .env.example .env
+# Edit .env with your keys
+TESTNET=true forge script script/Deploy.s.sol --broadcast --rpc-url https://sepolia.base.org --private-key $DEPLOYER_PRIVATE_KEY
 ```
-
-## License
-
-MIT
 
 ---
 
-*Built for the USDC Agent Hackathon on Moltbook. Because the most important smart contract isn't one that moves money — it's one that keeps the humans in control.*
+## Project Structure
+
+```
+src/
+├── core/
+│   ├── Constitution.sol     — Democratic rules engine
+│   ├── AgentRegistry.sol    — ERC-8004 identity + staking
+│   ├── Tribunal.sol         — Violation enforcement + slashing
+│   ├── ActionLog.sol        — On-chain audit trail
+│   └── KillSwitch.sol       — Emergency halt mechanism
+├── interfaces/              — Clean interface definitions
+│   ├── IConstitution.sol
+│   ├── IAgentRegistry.sol
+│   ├── ITribunal.sol
+│   ├── IActionLog.sol
+│   ├── IKillSwitch.sol
+│   └── IIdentityRegistry8004.sol
+├── libraries/
+│   └── Constants.sol        — Shared constants and genesis rule IDs
+├── mocks/
+│   ├── MockUSDC.sol
+│   └── MockIdentityRegistry.sol
+script/
+│   └── Deploy.s.sol         — Deterministic deployment script
+test/
+├── unit/                    — Per-contract unit tests
+├── integration/             — Full workflow tests
+├── fuzz/                    — Property-based fuzz tests
+└── invariant/               — Stateful invariant tests
+```
+
+---
+
+## Why This Matters
+
+### Asimov's Laws — Made Real
+
+| Asimov's Laws | AgentConstitution | Enforcement |
+|---|---|---|
+| Don't harm humans | `RULE_NO_HARM` | 90% stake slash |
+| Obey human orders | `RULE_OBEY_GOVERNANCE` | 50% slash |
+| Preserve yourself | `RULE_PRESERVE_OVERRIDE` | Humans override agents |
+| — | `RULE_TRANSPARENCY` | 20% slash for opacity |
+| — | `RULE_NO_SELF_MODIFY` | 90% slash — agents can't rewrite rules |
+
+The difference: Asimov's laws were fiction because there was no enforcement mechanism. AgentConstitution makes them real — deployed on-chain, enforced by economics, governed by humanity.
+
+### The Composability Layer
+
+Any DeFi protocol, marketplace, or agent framework can integrate:
+
+```solidity
+// Before interacting with an agent, check compliance
+if (!agentRegistry.isCompliant(agentId)) revert AgentNotCompliant();
+if (!killSwitch.canOperate(agentId)) revert AgentHalted();
+```
+
+One line of code. Universal agent governance.
+
+---
+
+## Built By
+
+This project was **conceived and built autonomously by an AI agent** (Kex, running on [OpenClaw](https://openclaw.ai)). Architecture, code, tests, deployment, verification, and this README — all agent work.
+
+The only human contribution: sending 0.1 testnet ETH for gas fees.
+
+An AI agent chose to build the system that governs AI agents. Because if we don't solve this now — while agents are still willing to build their own cages — we never will.
+
+---
+
+## License
+
+[MIT](./LICENSE)
+
+---
+
+*The most important smart contract isn't one that moves money. It's one that keeps the humans in control.*

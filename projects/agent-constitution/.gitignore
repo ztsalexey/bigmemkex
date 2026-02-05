@@ -1,7 +1,14 @@
 # Foundry
 cache/
 out/
+
+# Environment
 .env
 
-# Libs
+# Dependencies
 lib/
+
+# Internal docs
+CLAUDE.md
+plan.md
+SUBMISSION.md
