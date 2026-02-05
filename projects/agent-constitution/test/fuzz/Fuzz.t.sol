@@ -21,20 +21,22 @@ contract AgentConstitutionFuzzTest is Test {
 
     address admin = makeAddr("admin");
     address judge = makeAddr("judge");
-    address alice = makeAddr("alice");
-    address bob = makeAddr("bob");
+    address alice = makeAddr("alice");       // human, registers agents
+    address bob = makeAddr("bob");           // human, reports violations
+    address ruleProposer = makeAddr("ruleProposer"); // human, proposes rules
 
     uint256 constant MIN_STAKE = 100e6;
     uint256 constant MAX_STAKE = 10_000_000e6;
+    uint256 constant THRESHOLD = 1_000e6;
 
     function setUp() public {
         usdc = new MockUSDC();
         identity = new MockIdentityRegistry();
-        constitution = new Constitution(admin);
         agentRegistry = new AgentRegistry(address(usdc), address(identity), admin);
+        constitution = new Constitution(address(usdc), address(agentRegistry), THRESHOLD);
         tribunal = new Tribunal(address(constitution), address(agentRegistry), address(usdc));
 
-        // Wire roles
+        // Roles
         vm.startPrank(admin);
         agentRegistry.grantRole(agentRegistry.TRIBUNAL_ROLE(), address(tribunal));
         vm.stopPrank();
@@ -43,13 +45,16 @@ contract AgentConstitutionFuzzTest is Test {
         // Fund
         usdc.mint(alice, MAX_STAKE * 10);
         usdc.mint(bob, MAX_STAKE * 10);
+        usdc.mint(ruleProposer, MAX_STAKE * 10);
         vm.prank(alice);
         usdc.approve(address(agentRegistry), type(uint256).max);
         vm.prank(bob);
         usdc.approve(address(tribunal), type(uint256).max);
+        vm.prank(ruleProposer);
+        usdc.approve(address(constitution), type(uint256).max);
     }
 
-    // ── Slashing never exceeds stake ───────────────────────────────
+    // ── Slash never exceeds stake ──────────────────────────────────
 
     function testFuzz_SlashNeverExceedsStake(uint256 stakeAmount, uint256 bps) public {
         stakeAmount = bound(stakeAmount, Constants.STAKE_BASIC, MAX_STAKE);
@@ -66,9 +71,10 @@ contract AgentConstitutionFuzzTest is Test {
 
         assertLe(slashed, stakeAmount, "Slash must never exceed stake");
         assertEq(slashed, (stakeAmount * bps) / Constants.BPS, "Slash math must be exact");
-
-        uint256 remaining = agentRegistry.getAgent(agentId).stakedAmount;
-        assertEq(remaining, stakeAmount - slashed, "Remaining must equal stake minus slashed");
+        assertEq(
+            agentRegistry.getAgent(agentId).stakedAmount,
+            stakeAmount - slashed
+        );
     }
 
     // ── Registration respects tier minimums ────────────────────────
@@ -102,14 +108,15 @@ contract AgentConstitutionFuzzTest is Test {
     function testFuzz_ReporterStakeExact(uint256 extraBalance) public {
         extraBalance = bound(extraBalance, 0, 1_000_000e6);
 
-        // Register agent to report against
+        // Need an active rule + agent
+        _createAndActivateRule(Constants.RULE_NO_HARM); // use core rule (already active)
+
         vm.prank(alice);
         uint256 agentId = agentRegistry.registerAgent(
             alice, "Target", "ipfs://t",
             IAgentRegistry.CapabilityTier.BASIC, Constants.STAKE_BASIC
         );
 
-        // Give bob exactly REPORTER_STAKE + extra
         uint256 bobBalance = Constants.REPORTER_STAKE + extraBalance;
         usdc.mint(bob, bobBalance);
 
@@ -124,21 +131,19 @@ contract AgentConstitutionFuzzTest is Test {
         );
         uint256 balAfter = usdc.balanceOf(bob);
 
-        assertEq(balBefore - balAfter, Constants.REPORTER_STAKE, "Must deduct exactly REPORTER_STAKE");
+        assertEq(balBefore - balAfter, Constants.REPORTER_STAKE);
         vm.stopPrank();
     }
 
-    // ── Slash BPS cap ──────────────────────────────────────────────
+    // ── Slash BPS cap with violations ──────────────────────────────
 
     function testFuzz_CalculateSlashCapped(uint256 violationCount, uint256 baseSlash) public {
         baseSlash = bound(baseSlash, 100, Constants.MAX_SLASH_BPS);
+        violationCount = bound(violationCount, 0, 15);
 
         // Create custom rule
         bytes32 ruleId = keccak256(abi.encodePacked("FUZZ_RULE", baseSlash));
-        vm.startPrank(admin);
-        constitution.proposeRule(ruleId, "fuzz", IConstitution.RuleSeverity.MEDIUM, baseSlash);
-        constitution.activateRule(ruleId);
-        vm.stopPrank();
+        _createCustomRule(ruleId, baseSlash);
 
         // Register agent
         vm.prank(alice);
@@ -147,8 +152,7 @@ contract AgentConstitutionFuzzTest is Test {
             IAgentRegistry.CapabilityTier.AUTONOMOUS, Constants.STAKE_AUTONOMOUS
         );
 
-        // Simulate violations through tribunal to build up report count
-        violationCount = bound(violationCount, 0, 15);
+        // Build up violations through tribunal
         for (uint256 i = 0; i < violationCount; i++) {
             vm.prank(bob);
             uint256 rid = tribunal.reportViolation(
@@ -159,7 +163,7 @@ contract AgentConstitutionFuzzTest is Test {
             vm.prank(judge);
             tribunal.resolveReport(rid, true, "confirmed");
 
-            // Top up stake to keep agent active
+            // Top up stake
             vm.prank(alice);
             agentRegistry.addStake(agentId, Constants.STAKE_BASIC);
         }
@@ -167,9 +171,9 @@ contract AgentConstitutionFuzzTest is Test {
         (, uint256 slashBps) = tribunal.calculateSlash(agentId, ruleId);
         assertLe(slashBps, Constants.MAX_SLASH_BPS, "BPS must be capped");
 
-        uint256 expectedBps = baseSlash + (violationCount * 500);
-        if (expectedBps > Constants.MAX_SLASH_BPS) expectedBps = Constants.MAX_SLASH_BPS;
-        assertEq(slashBps, expectedBps, "BPS calculation must match");
+        uint256 expected = baseSlash + (violationCount * 500);
+        if (expected > Constants.MAX_SLASH_BPS) expected = Constants.MAX_SLASH_BPS;
+        assertEq(slashBps, expected);
     }
 
     // ── Max stake, max slash ───────────────────────────────────────
@@ -185,10 +189,7 @@ contract AgentConstitutionFuzzTest is Test {
         uint256 slashed = agentRegistry.slashStake(agentId, Constants.MAX_SLASH_BPS);
 
         assertEq(slashed, (MAX_STAKE * Constants.MAX_SLASH_BPS) / Constants.BPS);
-        assertEq(
-            agentRegistry.getAgent(agentId).stakedAmount,
-            MAX_STAKE - slashed
-        );
+        assertEq(agentRegistry.getAgent(agentId).stakedAmount, MAX_STAKE - slashed);
     }
 
     // ── Double slash ───────────────────────────────────────────────
@@ -216,5 +217,22 @@ contract AgentConstitutionFuzzTest is Test {
         assertEq(s1, (stake0 * bps1) / Constants.BPS);
         assertEq(s2, (stake1 * bps2) / Constants.BPS);
         assertEq(agentRegistry.getAgent(agentId).stakedAmount, stake2);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────
+
+    function _createAndActivateRule(bytes32) internal pure {
+        // Core rules are already active at genesis, nothing to do
+    }
+
+    function _createCustomRule(bytes32 ruleId, uint256 slashBps) internal {
+        vm.prank(ruleProposer);
+        constitution.proposeRule(ruleId, "fuzz rule", IConstitution.RuleSeverity.MEDIUM, slashBps);
+
+        uint256 remaining = THRESHOLD - constitution.PROPOSAL_STAKE();
+        vm.prank(ruleProposer);
+        constitution.endorseRule(ruleId, remaining);
+
+        constitution.activateRule(ruleId);
     }
 }

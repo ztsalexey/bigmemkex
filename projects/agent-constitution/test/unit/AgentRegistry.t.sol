@@ -25,9 +25,9 @@ contract AgentRegistryTest is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
-        constitution = new Constitution(admin);
         identity = new MockIdentityRegistry();
         registry = new AgentRegistry(address(usdc), address(identity), admin);
+        constitution = new Constitution(address(usdc), address(registry), 1_000e6);
 
         usdc.mint(staker, 200_000e6);
         vm.prank(staker);

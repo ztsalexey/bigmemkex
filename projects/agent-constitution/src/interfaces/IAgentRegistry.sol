@@ -46,6 +46,7 @@ interface IAgentRegistry {
     function isCompliant(uint256 agentId) external view returns (bool);
     function getAgent(uint256 agentId) external view returns (AgentProfile memory);
     function agentExists(uint256 agentId) external view returns (bool);
+    function isOperator(address addr) external view returns (bool);
     function minimumStake(CapabilityTier tier) external view returns (uint256);
     function totalAgents() external view returns (uint256);
 }

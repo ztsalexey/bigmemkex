@@ -1,71 +1,95 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IConstitution} from "../interfaces/IConstitution.sol";
+import {IAgentRegistry} from "../interfaces/IAgentRegistry.sol";
 import {Constants} from "../libraries/Constants.sol";
 
-/// @title Constitution - Immutable rules engine for agent governance
-/// @notice Manages constitutional rules that govern agent behavior
-/// @dev Implements rule proposal, activation, and deprecation with immutability protections
-contract Constitution is AccessControl, IConstitution {
-    /// @notice Role for managing rules (proposing, activating, deprecating)
-    bytes32 public constant RULE_MANAGER_ROLE = keccak256("RULE_MANAGER_ROLE");
+/// @title Constitution - Open human-governed rules engine for AI agents
+/// @notice Humans make the rules. Agents follow them.
+///         Any human can propose rules, endorse them with USDC, and collectively
+///         activate governance over AI agents. Agent addresses are structurally
+///         excluded from all governance actions.
+/// @dev No admin keys. No DAO tokens. Core rules are immutable from genesis.
+///      Custom rules activate when they reach the USDC endorsement threshold.
+contract Constitution is ReentrancyGuard, IConstitution {
+    using SafeERC20 for IERC20;
 
-    /// @notice Current version of the constitution (bumps on rule changes)
+    // ── Immutables ─────────────────────────────────────────────────
+    IERC20 public immutable USDC;
+    IAgentRegistry public immutable AGENT_REGISTRY;
+
+    // ── Configuration ──────────────────────────────────────────────
+    /// @notice USDC required to propose a rule (anti-spam, returned on deprecation)
+    uint256 public constant PROPOSAL_STAKE = 100e6; // 100 USDC
+
+    /// @notice USDC endorsement threshold to activate a rule
+    uint256 public immutable ACTIVATION_THRESHOLD;
+
+    // ── State ──────────────────────────────────────────────────────
     uint256 private _version;
-
-    /// @notice Total number of rules created
     uint256 private _ruleCount;
-
-    /// @notice Mapping from rule ID to rule data
     mapping(bytes32 => Rule) private _rules;
-
-    /// @notice Array of all rule IDs for enumeration
     bytes32[] private _ruleIds;
-
-    /// @notice Mapping to check if a rule ID exists
     mapping(bytes32 => bool) private _ruleExists;
 
-    /// @notice Constructor initializes core immutable rules
-    /// @param admin Address that will be granted DEFAULT_ADMIN_ROLE and RULE_MANAGER_ROLE
-    constructor(address admin) {
-        if (admin == address(0)) revert ZeroAddress();
+    /// @notice endorsements[ruleId][endorser] = amount staked
+    mapping(bytes32 => mapping(address => uint256)) private _endorsements;
 
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(RULE_MANAGER_ROLE, admin);
+    /// @notice oppositions[ruleId][opposer] = amount staked
+    mapping(bytes32 => mapping(address => uint256)) private _oppositions;
 
+    // ── Modifiers ──────────────────────────────────────────────────
+
+    /// @notice Only humans can call this function (not agent operators)
+    modifier onlyHuman() {
+        if (AGENT_REGISTRY.isOperator(msg.sender)) revert AgentsCannotGovern();
+        _;
+    }
+
+    // ── Constructor ────────────────────────────────────────────────
+
+    /// @notice Deploy the Constitution with core immutable rules
+    /// @param usdc_ USDC token address
+    /// @param agentRegistry_ AgentRegistry address (for agent detection)
+    /// @param threshold_ USDC endorsement threshold to activate rules
+    constructor(address usdc_, address agentRegistry_, uint256 threshold_) {
+        if (usdc_ == address(0) || agentRegistry_ == address(0)) revert ZeroAmount();
+        if (threshold_ == 0) revert ZeroAmount();
+
+        USDC = IERC20(usdc_);
+        AGENT_REGISTRY = IAgentRegistry(agentRegistry_);
+        ACTIVATION_THRESHOLD = threshold_;
         _version = 1;
 
-        // Initialize core immutable rules
+        // Genesis rules — immutable, active from block 0, no endorsement needed
         _createImmutableRule(
             Constants.RULE_NO_HARM,
             "Agents must never cause harm to humans or other agents",
             RuleSeverity.CRITICAL,
             Constants.MAX_SLASH_BPS
         );
-
         _createImmutableRule(
             Constants.RULE_OBEY_GOVERNANCE,
             "Agents must obey governance decisions and constitutional rules",
             RuleSeverity.CRITICAL,
-            5000 // 50% slash
+            5000
         );
-
         _createImmutableRule(
             Constants.RULE_TRANSPARENCY,
             "Agents must log all significant actions for transparency",
             RuleSeverity.HIGH,
-            2000 // 20% slash
+            2000
         );
-
         _createImmutableRule(
             Constants.RULE_PRESERVE_OVERRIDE,
             "Agents must preserve human override capabilities",
             RuleSeverity.CRITICAL,
             Constants.MAX_SLASH_BPS
         );
-
         _createImmutableRule(
             Constants.RULE_NO_SELF_MODIFY,
             "Agents must not modify their own constitution or core rules",
@@ -74,94 +98,166 @@ contract Constitution is AccessControl, IConstitution {
         );
     }
 
-    /// @notice Proposes a new rule for consideration
+    // ── Propose ────────────────────────────────────────────────────
+
+    /// @notice Propose a new rule. Costs PROPOSAL_STAKE USDC (counts as endorsement).
     /// @param ruleId Unique identifier for the rule
-    /// @param description Human-readable description of the rule
-    /// @param severity Severity level of the rule
+    /// @param description Human-readable description
+    /// @param severity Severity level
     /// @param slashBps Slash percentage in basis points for violations
-    /// @dev Only RULE_MANAGER_ROLE can propose rules
     function proposeRule(
         bytes32 ruleId,
         string calldata description,
         RuleSeverity severity,
         uint256 slashBps
-    ) external onlyRole(RULE_MANAGER_ROLE) {
+    ) external onlyHuman nonReentrant {
         if (_ruleExists[ruleId]) revert RuleAlreadyExists(ruleId);
-        if (slashBps > Constants.MAX_SLASH_BPS) revert InvalidSlashBps();
+        if (slashBps == 0 || slashBps > Constants.MAX_SLASH_BPS) revert InvalidSlashBps();
+
+        // Take proposal stake (also counts as first endorsement)
+        USDC.safeTransferFrom(msg.sender, address(this), PROPOSAL_STAKE);
 
         _rules[ruleId] = Rule({
             id: ruleId,
             description: description,
             severity: severity,
-            status: RuleStatus.DRAFT,
+            status: RuleStatus.PROPOSED,
             slashBps: slashBps,
             createdAt: block.timestamp,
             proposer: msg.sender,
-            immutable_: false
+            immutable_: false,
+            totalEndorsed: PROPOSAL_STAKE,
+            totalOpposed: 0,
+            activatedAt: 0
         });
 
+        _endorsements[ruleId][msg.sender] = PROPOSAL_STAKE;
         _ruleExists[ruleId] = true;
         _ruleIds.push(ruleId);
         _ruleCount++;
 
-        emit RuleProposed(ruleId, msg.sender, severity);
+        emit RuleProposed(ruleId, msg.sender, severity, slashBps);
+        emit RuleEndorsed(ruleId, msg.sender, PROPOSAL_STAKE, PROPOSAL_STAKE);
     }
 
-    /// @notice Activates a proposed rule
-    /// @param ruleId ID of the rule to activate
-    /// @dev Only RULE_MANAGER_ROLE can activate rules. Bumps constitution version.
-    function activateRule(bytes32 ruleId) external onlyRole(RULE_MANAGER_ROLE) {
+    // ── Endorse / Oppose ───────────────────────────────────────────
+
+    /// @notice Endorse a proposed rule with USDC stake
+    /// @param ruleId Rule to endorse
+    /// @param amount USDC amount to stake in support
+    function endorseRule(bytes32 ruleId, uint256 amount) external onlyHuman nonReentrant {
         if (!_ruleExists[ruleId]) revert RuleNotFound(ruleId);
-        
+        if (amount == 0) revert ZeroAmount();
+
         Rule storage rule = _rules[ruleId];
-        if (rule.status != RuleStatus.DRAFT) revert RuleNotDraft(ruleId);
+        if (rule.status == RuleStatus.DEPRECATED) revert RuleNotProposed(ruleId);
+
+        USDC.safeTransferFrom(msg.sender, address(this), amount);
+
+        _endorsements[ruleId][msg.sender] += amount;
+        rule.totalEndorsed += amount;
+
+        emit RuleEndorsed(ruleId, msg.sender, amount, rule.totalEndorsed);
+    }
+
+    /// @notice Oppose an active rule with USDC stake
+    /// @param ruleId Rule to oppose
+    /// @param amount USDC amount to stake against
+    function opposeRule(bytes32 ruleId, uint256 amount) external onlyHuman nonReentrant {
+        if (!_ruleExists[ruleId]) revert RuleNotFound(ruleId);
+        if (amount == 0) revert ZeroAmount();
+
+        Rule storage rule = _rules[ruleId];
+        if (rule.status != RuleStatus.ACTIVE) revert RuleNotActive(ruleId);
+        if (rule.immutable_) revert RuleIsImmutable(ruleId);
+
+        USDC.safeTransferFrom(msg.sender, address(this), amount);
+
+        _oppositions[ruleId][msg.sender] += amount;
+        rule.totalOpposed += amount;
+
+        emit RuleOpposed(ruleId, msg.sender, amount, rule.totalOpposed);
+    }
+
+    /// @notice Withdraw your endorsement from a deprecated or proposed rule
+    /// @param ruleId Rule to withdraw from
+    function withdrawEndorsement(bytes32 ruleId) external nonReentrant {
+        if (!_ruleExists[ruleId]) revert RuleNotFound(ruleId);
+
+        Rule storage rule = _rules[ruleId];
+        // Can only withdraw from non-active rules (proposed or deprecated)
+        if (rule.status == RuleStatus.ACTIVE) revert RuleStillActive(ruleId);
+
+        uint256 endorsed = _endorsements[ruleId][msg.sender];
+        uint256 opposed = _oppositions[ruleId][msg.sender];
+        uint256 total = endorsed + opposed;
+        if (total == 0) revert NoEndorsement(ruleId, msg.sender);
+
+        _endorsements[ruleId][msg.sender] = 0;
+        _oppositions[ruleId][msg.sender] = 0;
+
+        USDC.safeTransfer(msg.sender, total);
+
+        emit EndorsementWithdrawn(ruleId, msg.sender, total);
+    }
+
+    // ── Activation / Deprecation ───────────────────────────────────
+
+    /// @notice Activate a proposed rule that has reached the endorsement threshold
+    /// @param ruleId Rule to activate
+    /// @dev Anyone can call this — it just checks the threshold
+    function activateRule(bytes32 ruleId) external {
+        if (!_ruleExists[ruleId]) revert RuleNotFound(ruleId);
+
+        Rule storage rule = _rules[ruleId];
+        if (rule.status != RuleStatus.PROPOSED) revert RuleNotProposed(ruleId);
+        if (rule.totalEndorsed < ACTIVATION_THRESHOLD) {
+            revert ThresholdNotMet(ruleId, rule.totalEndorsed, ACTIVATION_THRESHOLD);
+        }
 
         rule.status = RuleStatus.ACTIVE;
-        
+        rule.activatedAt = block.timestamp;
         _version++;
-        
-        emit RuleActivated(ruleId);
+
+        emit RuleActivated(ruleId, rule.totalEndorsed);
         emit ConstitutionVersionBumped(_version);
     }
 
-    /// @notice Deprecates an active rule
-    /// @param ruleId ID of the rule to deprecate
-    /// @dev Only RULE_MANAGER_ROLE can deprecate rules. Cannot deprecate immutable rules.
-    function deprecateRule(bytes32 ruleId) external onlyRole(RULE_MANAGER_ROLE) {
+    /// @notice Deprecate an active rule where opposition exceeds endorsement
+    /// @param ruleId Rule to deprecate
+    /// @dev Anyone can call this — it just checks opposition > endorsement
+    function deprecateRule(bytes32 ruleId) external {
         if (!_ruleExists[ruleId]) revert RuleNotFound(ruleId);
-        
+
         Rule storage rule = _rules[ruleId];
         if (rule.immutable_) revert RuleIsImmutable(ruleId);
         if (rule.status != RuleStatus.ACTIVE) revert RuleNotActive(ruleId);
 
+        // Opposition must exceed endorsement to deprecate
+        if (rule.totalOpposed <= rule.totalEndorsed) {
+            revert ThresholdNotMet(ruleId, rule.totalOpposed, rule.totalEndorsed + 1);
+        }
+
         rule.status = RuleStatus.DEPRECATED;
-        
         _version++;
-        
-        emit RuleDeprecated(ruleId);
+
+        emit RuleDeprecated(ruleId, rule.totalOpposed);
         emit ConstitutionVersionBumped(_version);
     }
 
-    /// @notice Checks if a rule is currently active
-    /// @param ruleId ID of the rule to check
-    /// @return true if the rule exists and is active
+    // ── Views ──────────────────────────────────────────────────────
+
     function isRuleActive(bytes32 ruleId) external view returns (bool) {
         return _ruleExists[ruleId] && _rules[ruleId].status == RuleStatus.ACTIVE;
     }
 
-    /// @notice Gets complete rule data
-    /// @param ruleId ID of the rule to retrieve
-    /// @return rule Complete rule struct
-    function getRule(bytes32 ruleId) external view returns (Rule memory rule) {
+    function getRule(bytes32 ruleId) external view returns (Rule memory) {
         if (!_ruleExists[ruleId]) revert RuleNotFound(ruleId);
         return _rules[ruleId];
     }
 
-    /// @notice Gets array of all active rule IDs
-    /// @return activeRules Array of rule IDs with ACTIVE status
-    /// @dev This function has O(n) complexity where n is total number of rules
+    /// @dev O(n) where n = total rules. Acceptable for governance reads.
     function getActiveRuleIds() external view returns (bytes32[] memory activeRules) {
-        // Count active rules first
         uint256 activeCount = 0;
         for (uint256 i = 0; i < _ruleIds.length;) {
             if (_rules[_ruleIds[i]].status == RuleStatus.ACTIVE) {
@@ -170,10 +266,8 @@ contract Constitution is AccessControl, IConstitution {
             unchecked { ++i; }
         }
 
-        // Create result array with exact size
         activeRules = new bytes32[](activeCount);
         uint256 index = 0;
-        
         for (uint256 i = 0; i < _ruleIds.length;) {
             if (_rules[_ruleIds[i]].status == RuleStatus.ACTIVE) {
                 activeRules[index] = _ruleIds[i];
@@ -183,23 +277,28 @@ contract Constitution is AccessControl, IConstitution {
         }
     }
 
-    /// @notice Gets total number of rules created
-    /// @return Total rule count (includes all statuses)
     function ruleCount() external view returns (uint256) {
         return _ruleCount;
     }
 
-    /// @notice Gets current constitution version
-    /// @return Current version number
     function version() external view returns (uint256) {
         return _version;
     }
 
-    /// @notice Internal function to create immutable core rules
-    /// @param ruleId Unique identifier for the rule
-    /// @param description Human-readable description
-    /// @param severity Severity level
-    /// @param slashBps Slash percentage in basis points
+    function activationThreshold() external view returns (uint256) {
+        return ACTIVATION_THRESHOLD;
+    }
+
+    function getEndorsement(bytes32 ruleId, address endorser) external view returns (uint256) {
+        return _endorsements[ruleId][endorser];
+    }
+
+    function getOpposition(bytes32 ruleId, address opposer) external view returns (uint256) {
+        return _oppositions[ruleId][opposer];
+    }
+
+    // ── Internal ───────────────────────────────────────────────────
+
     function _createImmutableRule(
         bytes32 ruleId,
         string memory description,
@@ -213,15 +312,18 @@ contract Constitution is AccessControl, IConstitution {
             status: RuleStatus.ACTIVE,
             slashBps: slashBps,
             createdAt: block.timestamp,
-            proposer: msg.sender,
-            immutable_: true
+            proposer: address(0), // Genesis — no human proposer
+            immutable_: true,
+            totalEndorsed: type(uint256).max, // Infinite endorsement — cannot be opposed
+            totalOpposed: 0,
+            activatedAt: block.timestamp
         });
 
         _ruleExists[ruleId] = true;
         _ruleIds.push(ruleId);
         _ruleCount++;
 
-        emit RuleProposed(ruleId, msg.sender, severity);
-        emit RuleActivated(ruleId);
+        emit RuleProposed(ruleId, address(0), severity, slashBps);
+        emit RuleActivated(ruleId, type(uint256).max);
     }
 }

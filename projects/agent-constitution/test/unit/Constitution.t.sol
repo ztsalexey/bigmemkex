@@ -3,340 +3,390 @@ pragma solidity 0.8.28;
 
 import "forge-std/Test.sol";
 import "../../src/core/Constitution.sol";
+import "../../src/core/AgentRegistry.sol";
+import "../../src/mocks/MockUSDC.sol";
+import "../../src/mocks/MockIdentityRegistry.sol";
 import "../../src/libraries/Constants.sol";
 
 contract ConstitutionTest is Test {
     Constitution public constitution;
-    address public admin = makeAddr("admin");
-    address public ruleManager = makeAddr("ruleManager");
-    address public nonAdmin = makeAddr("nonAdmin");
+    AgentRegistry public agentRegistry;
+    MockUSDC public usdc;
+    MockIdentityRegistry public identity;
 
-    // Test rule constants
+    address public alice = makeAddr("alice");    // human proposer
+    address public bob = makeAddr("bob");        // human endorser
+    address public charlie = makeAddr("charlie"); // another human
+    address public agentOp = makeAddr("agentOp"); // agent operator (will be blocked)
+    address public admin = makeAddr("admin");
+
+    uint256 public constant THRESHOLD = 1_000e6; // 1000 USDC
+
     bytes32 public constant TEST_RULE_1 = keccak256("TEST_RULE_1");
     bytes32 public constant TEST_RULE_2 = keccak256("TEST_RULE_2");
-    
-    // Core immutable rules from Constants
-    bytes32[] public expectedImmutableRules;
 
     function setUp() public {
-        // Deploy constitution with admin
-        constitution = new Constitution(admin);
+        usdc = new MockUSDC();
+        identity = new MockIdentityRegistry();
 
-        // Note: Admin already has RULE_MANAGER_ROLE from constructor
-        // We'll use admin for rule management operations in tests
+        // Deploy AgentRegistry first (Constitution depends on it)
+        agentRegistry = new AgentRegistry(address(usdc), address(identity), admin);
 
-        // Set up expected immutable rules
-        expectedImmutableRules = [
-            Constants.RULE_NO_HARM,
-            Constants.RULE_OBEY_GOVERNANCE,
-            Constants.RULE_TRANSPARENCY,
-            Constants.RULE_PRESERVE_OVERRIDE,
-            Constants.RULE_NO_SELF_MODIFY
-        ];
+        // Deploy Constitution — no admin, fully open
+        constitution = new Constitution(address(usdc), address(agentRegistry), THRESHOLD);
+
+        // Fund humans
+        usdc.mint(alice, 100_000e6);
+        usdc.mint(bob, 100_000e6);
+        usdc.mint(charlie, 100_000e6);
+        usdc.mint(agentOp, 100_000e6);
+
+        // Approve Constitution for all
+        vm.prank(alice);
+        usdc.approve(address(constitution), type(uint256).max);
+        vm.prank(bob);
+        usdc.approve(address(constitution), type(uint256).max);
+        vm.prank(charlie);
+        usdc.approve(address(constitution), type(uint256).max);
+        vm.prank(agentOp);
+        usdc.approve(address(constitution), type(uint256).max);
+        vm.prank(agentOp);
+        usdc.approve(address(agentRegistry), type(uint256).max);
+
+        // Register agentOp as an agent operator (making them non-human)
+        vm.prank(agentOp);
+        agentRegistry.registerAgent(
+            agentOp, "TestBot", "ipfs://bot",
+            IAgentRegistry.CapabilityTier.BASIC, Constants.STAKE_BASIC
+        );
     }
 
-    function test_CoreImmutableRulesExistAndActiveAfterDeployment() public {
-        // Check that constitution starts with version 1
+    // ── Core immutable rules ───────────────────────────────────────
+
+    function test_CoreRulesActiveAtGenesis() public {
         assertEq(constitution.version(), 1);
-        
-        // Check that all core immutable rules exist and are active
-        for (uint256 i = 0; i < expectedImmutableRules.length; i++) {
-            bytes32 ruleId = expectedImmutableRules[i];
-            assertTrue(constitution.isRuleActive(ruleId), "Core rule should be active");
-            
-            IConstitution.Rule memory rule = constitution.getRule(ruleId);
-            assertEq(rule.id, ruleId);
-            assertTrue(rule.immutable_, "Core rule should be immutable");
-            assertEq(uint256(rule.status), uint256(IConstitution.RuleStatus.ACTIVE));
-            assertTrue(rule.slashBps > 0, "Core rule should have slash penalty");
-        }
+        assertTrue(constitution.isRuleActive(Constants.RULE_NO_HARM));
+        assertTrue(constitution.isRuleActive(Constants.RULE_OBEY_GOVERNANCE));
+        assertTrue(constitution.isRuleActive(Constants.RULE_TRANSPARENCY));
+        assertTrue(constitution.isRuleActive(Constants.RULE_PRESERVE_OVERRIDE));
+        assertTrue(constitution.isRuleActive(Constants.RULE_NO_SELF_MODIFY));
 
-        // Check rule count includes all immutable rules
-        assertEq(constitution.ruleCount(), expectedImmutableRules.length);
-        
-        // Check that getActiveRuleIds returns all immutable rules
-        bytes32[] memory activeRules = constitution.getActiveRuleIds();
-        assertEq(activeRules.length, expectedImmutableRules.length);
+        assertEq(constitution.ruleCount(), 5);
+
+        bytes32[] memory active = constitution.getActiveRuleIds();
+        assertEq(active.length, 5);
     }
 
-    function test_CanProposeNewRule() public {
-        vm.prank(admin);
-        constitution.proposeRule(
-            TEST_RULE_1,
-            "Test rule description",
-            IConstitution.RuleSeverity.MEDIUM,
-            1000 // 10% slash
-        );
+    function test_CoreRulesAreImmutable() public {
+        IConstitution.Rule memory r = constitution.getRule(Constants.RULE_NO_HARM);
+        assertTrue(r.immutable_);
+        assertEq(r.totalEndorsed, type(uint256).max);
+        assertEq(r.proposer, address(0)); // genesis, no human proposer
+    }
 
-        // Check rule exists in DRAFT status
-        IConstitution.Rule memory rule = constitution.getRule(TEST_RULE_1);
-        assertEq(rule.id, TEST_RULE_1);
-        assertEq(rule.description, "Test rule description");
-        assertEq(uint256(rule.severity), uint256(IConstitution.RuleSeverity.MEDIUM));
-        assertEq(uint256(rule.status), uint256(IConstitution.RuleStatus.DRAFT));
-        assertEq(rule.slashBps, 1000);
-        assertEq(rule.proposer, admin);
-        assertFalse(rule.immutable_);
-        
-        // Check rule count increased
-        assertEq(constitution.ruleCount(), expectedImmutableRules.length + 1);
-        
-        // Rule should not be active yet
+    function test_CoreRulesCannotBeOpposed() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleIsImmutable.selector, Constants.RULE_NO_HARM));
+        constitution.opposeRule(Constants.RULE_NO_HARM, 100e6);
+    }
+
+    function test_CoreRuleSlashAmounts() public {
+        assertEq(constitution.getRule(Constants.RULE_NO_HARM).slashBps, Constants.MAX_SLASH_BPS);
+        assertEq(constitution.getRule(Constants.RULE_OBEY_GOVERNANCE).slashBps, 5000);
+        assertEq(constitution.getRule(Constants.RULE_TRANSPARENCY).slashBps, 2000);
+        assertEq(constitution.getRule(Constants.RULE_PRESERVE_OVERRIDE).slashBps, Constants.MAX_SLASH_BPS);
+        assertEq(constitution.getRule(Constants.RULE_NO_SELF_MODIFY).slashBps, Constants.MAX_SLASH_BPS);
+    }
+
+    // ── Proposing rules ────────────────────────────────────────────
+
+    function test_HumanCanProposeRule() public {
+        uint256 balBefore = usdc.balanceOf(alice);
+
+        vm.prank(alice);
+        constitution.proposeRule(TEST_RULE_1, "No rug pulls", IConstitution.RuleSeverity.HIGH, 3000);
+
+        IConstitution.Rule memory r = constitution.getRule(TEST_RULE_1);
+        assertEq(r.id, TEST_RULE_1);
+        assertEq(r.proposer, alice);
+        assertEq(uint256(r.status), uint256(IConstitution.RuleStatus.PROPOSED));
+        assertEq(r.totalEndorsed, constitution.PROPOSAL_STAKE());
+        assertEq(r.slashBps, 3000);
+        assertFalse(r.immutable_);
         assertFalse(constitution.isRuleActive(TEST_RULE_1));
+
+        // USDC deducted
+        assertEq(usdc.balanceOf(alice), balBefore - constitution.PROPOSAL_STAKE());
+
+        // Proposer's endorsement tracked
+        assertEq(constitution.getEndorsement(TEST_RULE_1, alice), constitution.PROPOSAL_STAKE());
     }
 
-    function test_CanActivateProposedRule() public {
-        // First propose a rule
-        vm.prank(admin);
-        constitution.proposeRule(
-            TEST_RULE_1,
-            "Test rule description",
-            IConstitution.RuleSeverity.MEDIUM,
-            1000
-        );
-
-        uint256 versionBefore = constitution.version();
-
-        // Activate the rule
-        vm.prank(admin);
-        constitution.activateRule(TEST_RULE_1);
-
-        // Check rule is now active
-        assertTrue(constitution.isRuleActive(TEST_RULE_1));
-        
-        IConstitution.Rule memory rule = constitution.getRule(TEST_RULE_1);
-        assertEq(uint256(rule.status), uint256(IConstitution.RuleStatus.ACTIVE));
-        
-        // Check version was bumped
-        assertEq(constitution.version(), versionBefore + 1);
-        
-        // Check active rules now includes new rule
-        bytes32[] memory activeRules = constitution.getActiveRuleIds();
-        assertEq(activeRules.length, expectedImmutableRules.length + 1);
-        
-        // Verify the new rule is in the active rules list
-        bool found = false;
-        for (uint256 i = 0; i < activeRules.length; i++) {
-            if (activeRules[i] == TEST_RULE_1) {
-                found = true;
-                break;
-            }
-        }
-        assertTrue(found, "Activated rule should be in active rules list");
+    function test_AgentCannotProposeRule() public {
+        vm.prank(agentOp);
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.AgentsCannotGovern.selector));
+        constitution.proposeRule(TEST_RULE_1, "Evil rule", IConstitution.RuleSeverity.LOW, 500);
     }
 
-    function test_CannotDeprecateCriticalImmutableRules() public {
-        // Try to deprecate each immutable rule
-        for (uint256 i = 0; i < expectedImmutableRules.length; i++) {
-            bytes32 ruleId = expectedImmutableRules[i];
-            
-            vm.prank(admin);
-            vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleIsImmutable.selector, ruleId));
-            constitution.deprecateRule(ruleId);
-        }
-    }
+    function test_CannotProposeDuplicateRule() public {
+        vm.prank(alice);
+        constitution.proposeRule(TEST_RULE_1, "First", IConstitution.RuleSeverity.LOW, 500);
 
-    function test_CanDeprecateNonImmutableRules() public {
-        // First propose and activate a rule
-        vm.startPrank(admin);
-        constitution.proposeRule(
-            TEST_RULE_1,
-            "Test rule description",
-            IConstitution.RuleSeverity.MEDIUM,
-            1000
-        );
-        constitution.activateRule(TEST_RULE_1);
-        vm.stopPrank();
-
-        uint256 versionBefore = constitution.version();
-
-        // Now deprecate it
-        vm.prank(admin);
-        constitution.deprecateRule(TEST_RULE_1);
-
-        // Check rule is deprecated
-        assertFalse(constitution.isRuleActive(TEST_RULE_1));
-        
-        IConstitution.Rule memory rule = constitution.getRule(TEST_RULE_1);
-        assertEq(uint256(rule.status), uint256(IConstitution.RuleStatus.DEPRECATED));
-        
-        // Check version was bumped
-        assertEq(constitution.version(), versionBefore + 1);
-        
-        // Check active rules no longer includes deprecated rule
-        bytes32[] memory activeRules = constitution.getActiveRuleIds();
-        assertEq(activeRules.length, expectedImmutableRules.length);
-    }
-
-    function test_VersionBumpsCorrectly() public {
-        uint256 initialVersion = constitution.version();
-        assertEq(initialVersion, 1);
-
-        // Propose and activate a rule
-        vm.startPrank(admin);
-        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.LOW, 500);
-        constitution.activateRule(TEST_RULE_1);
-        vm.stopPrank();
-
-        // Version should be bumped
-        assertEq(constitution.version(), initialVersion + 1);
-
-        // Deprecate the rule
-        vm.prank(admin);
-        constitution.deprecateRule(TEST_RULE_1);
-
-        // Version should be bumped again
-        assertEq(constitution.version(), initialVersion + 2);
-    }
-
-    function test_AccessControl_OnlyRuleManagerCanProposeRules() public {
-        vm.prank(nonAdmin);
-        vm.expectRevert();
-        constitution.proposeRule(
-            TEST_RULE_1,
-            "Test rule description",
-            IConstitution.RuleSeverity.MEDIUM,
-            1000
-        );
-    }
-
-    function test_AccessControl_OnlyRuleManagerCanActivateRules() public {
-        // First propose a rule as admin
-        vm.prank(admin);
-        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.LOW, 500);
-
-        // Try to activate as non-admin
-        vm.prank(nonAdmin);
-        vm.expectRevert();
-        constitution.activateRule(TEST_RULE_1);
-    }
-
-    function test_AccessControl_OnlyRuleManagerCanDeprecateRules() public {
-        // First propose and activate a rule as admin
-        vm.startPrank(admin);
-        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.LOW, 500);
-        constitution.activateRule(TEST_RULE_1);
-        vm.stopPrank();
-
-        // Try to deprecate as non-admin
-        vm.prank(nonAdmin);
-        vm.expectRevert();
-        constitution.deprecateRule(TEST_RULE_1);
-    }
-
-    function test_CustomErrors_RuleAlreadyExists() public {
-        // Propose a rule
-        vm.prank(admin);
-        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.LOW, 500);
-
-        // Try to propose the same rule again
-        vm.prank(admin);
+        vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleAlreadyExists.selector, TEST_RULE_1));
-        constitution.proposeRule(TEST_RULE_1, "Test2", IConstitution.RuleSeverity.HIGH, 1000);
+        constitution.proposeRule(TEST_RULE_1, "Second", IConstitution.RuleSeverity.HIGH, 1000);
     }
 
-    function test_CustomErrors_RuleNotFound() public {
-        // Try to get a rule that doesn't exist
-        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleNotFound.selector, TEST_RULE_1));
-        constitution.getRule(TEST_RULE_1);
+    function test_CannotProposeWithInvalidSlash() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.InvalidSlashBps.selector));
+        constitution.proposeRule(TEST_RULE_1, "Bad", IConstitution.RuleSeverity.LOW, Constants.MAX_SLASH_BPS + 1);
 
-        // Try to activate a rule that doesn't exist
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleNotFound.selector, TEST_RULE_1));
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.InvalidSlashBps.selector));
+        constitution.proposeRule(TEST_RULE_1, "Zero", IConstitution.RuleSeverity.LOW, 0);
+    }
+
+    // ── Endorsing rules ────────────────────────────────────────────
+
+    function test_HumanCanEndorseProposedRule() public {
+        vm.prank(alice);
+        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.MEDIUM, 2000);
+
+        vm.prank(bob);
+        constitution.endorseRule(TEST_RULE_1, 500e6);
+
+        IConstitution.Rule memory r = constitution.getRule(TEST_RULE_1);
+        assertEq(r.totalEndorsed, constitution.PROPOSAL_STAKE() + 500e6);
+        assertEq(constitution.getEndorsement(TEST_RULE_1, bob), 500e6);
+    }
+
+    function test_AgentCannotEndorse() public {
+        vm.prank(alice);
+        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.MEDIUM, 2000);
+
+        vm.prank(agentOp);
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.AgentsCannotGovern.selector));
+        constitution.endorseRule(TEST_RULE_1, 100e6);
+    }
+
+    function test_CannotEndorseZero() public {
+        vm.prank(alice);
+        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.MEDIUM, 2000);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.ZeroAmount.selector));
+        constitution.endorseRule(TEST_RULE_1, 0);
+    }
+
+    // ── Activating rules ───────────────────────────────────────────
+
+    function test_RuleActivatesWhenThresholdMet() public {
+        vm.prank(alice);
+        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.MEDIUM, 2000);
+
+        // Endorse enough to meet threshold
+        uint256 remaining = THRESHOLD - constitution.PROPOSAL_STAKE();
+        vm.prank(bob);
+        constitution.endorseRule(TEST_RULE_1, remaining);
+
+        uint256 vBefore = constitution.version();
+
+        // Anyone can trigger activation
         constitution.activateRule(TEST_RULE_1);
 
-        // Try to deprecate a rule that doesn't exist
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleNotFound.selector, TEST_RULE_1));
-        constitution.deprecateRule(TEST_RULE_1);
+        assertTrue(constitution.isRuleActive(TEST_RULE_1));
+        assertEq(constitution.version(), vBefore + 1);
+
+        IConstitution.Rule memory r = constitution.getRule(TEST_RULE_1);
+        assertEq(uint256(r.status), uint256(IConstitution.RuleStatus.ACTIVE));
+        assertGt(r.activatedAt, 0);
     }
 
-    function test_CustomErrors_InvalidSlashBps() public {
-        // Try to propose a rule with invalid slash BPS (over MAX_SLASH_BPS)
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IConstitution.InvalidSlashBps.selector));
-        constitution.proposeRule(
-            TEST_RULE_1,
-            "Test",
-            IConstitution.RuleSeverity.LOW,
-            Constants.MAX_SLASH_BPS + 1
+    function test_CannotActivateBelowThreshold() public {
+        vm.prank(alice);
+        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.MEDIUM, 2000);
+
+        // Only PROPOSAL_STAKE endorsed (100 USDC) — threshold is 1000 USDC
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IConstitution.ThresholdNotMet.selector,
+                TEST_RULE_1,
+                constitution.PROPOSAL_STAKE(),
+                THRESHOLD
+            )
         );
+        constitution.activateRule(TEST_RULE_1);
     }
 
-    function test_CustomErrors_RuleNotActive() public {
-        // Propose but don't activate a rule
-        vm.prank(admin);
-        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.LOW, 500);
-
-        // Try to deprecate a rule that's not active
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleNotActive.selector, TEST_RULE_1));
-        constitution.deprecateRule(TEST_RULE_1);
+    function test_CannotActivateNonProposedRule() public {
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleNotFound.selector, TEST_RULE_1));
+        constitution.activateRule(TEST_RULE_1);
     }
 
     function test_CannotActivateAlreadyActiveRule() public {
-        // Propose and activate a rule
-        vm.startPrank(admin);
-        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.LOW, 500);
-        constitution.activateRule(TEST_RULE_1);
+        _proposeAndActivate(TEST_RULE_1, "Test", 2000);
 
-        // Try to activate it again — should fail with RuleNotDraft
-        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleNotDraft.selector, TEST_RULE_1));
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleNotProposed.selector, TEST_RULE_1));
         constitution.activateRule(TEST_RULE_1);
-        vm.stopPrank();
     }
 
-    function test_CannotDeprecateDeprecatedRule() public {
-        // Propose, activate, and deprecate a rule
-        vm.startPrank(admin);
-        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.LOW, 500);
-        constitution.activateRule(TEST_RULE_1);
-        constitution.deprecateRule(TEST_RULE_1);
+    // ── Opposing / Deprecating rules ───────────────────────────────
 
-        // Try to deprecate it again
+    function test_HumanCanOpposeActiveRule() public {
+        _proposeAndActivate(TEST_RULE_1, "Test", 2000);
+
+        vm.prank(charlie);
+        constitution.opposeRule(TEST_RULE_1, 500e6);
+
+        IConstitution.Rule memory r = constitution.getRule(TEST_RULE_1);
+        assertEq(r.totalOpposed, 500e6);
+    }
+
+    function test_AgentCannotOppose() public {
+        _proposeAndActivate(TEST_RULE_1, "Test", 2000);
+
+        vm.prank(agentOp);
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.AgentsCannotGovern.selector));
+        constitution.opposeRule(TEST_RULE_1, 100e6);
+    }
+
+    function test_CannotOpposeProposedRule() public {
+        vm.prank(alice);
+        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.MEDIUM, 2000);
+
+        vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleNotActive.selector, TEST_RULE_1));
+        constitution.opposeRule(TEST_RULE_1, 100e6);
+    }
+
+    function test_RuleDeprecatesWhenOppositionExceedsEndorsement() public {
+        _proposeAndActivate(TEST_RULE_1, "Test", 2000);
+
+        IConstitution.Rule memory r = constitution.getRule(TEST_RULE_1);
+        uint256 endorsed = r.totalEndorsed;
+
+        // Oppose with more than endorsed
+        vm.prank(charlie);
+        constitution.opposeRule(TEST_RULE_1, endorsed + 1);
+
+        uint256 vBefore = constitution.version();
+
+        // Anyone can trigger deprecation
         constitution.deprecateRule(TEST_RULE_1);
-        vm.stopPrank();
+
+        assertFalse(constitution.isRuleActive(TEST_RULE_1));
+        assertEq(constitution.version(), vBefore + 1);
     }
 
-    function test_ZeroAddressInConstructor() public {
-        vm.expectRevert(abi.encodeWithSelector(IConstitution.ZeroAddress.selector));
-        new Constitution(address(0));
+    function test_CannotDeprecateWhenOppositionTooLow() public {
+        _proposeAndActivate(TEST_RULE_1, "Test", 2000);
+
+        IConstitution.Rule memory r = constitution.getRule(TEST_RULE_1);
+
+        // Oppose with less than endorsed
+        vm.prank(charlie);
+        constitution.opposeRule(TEST_RULE_1, r.totalEndorsed - 1);
+
+        vm.expectRevert();
+        constitution.deprecateRule(TEST_RULE_1);
     }
 
-    function test_CoreRulesHaveCorrectSlashAmounts() public {
-        // Test specific slash amounts for core rules
-        IConstitution.Rule memory noHarmRule = constitution.getRule(Constants.RULE_NO_HARM);
-        assertEq(noHarmRule.slashBps, Constants.MAX_SLASH_BPS); // 90%
-
-        IConstitution.Rule memory governanceRule = constitution.getRule(Constants.RULE_OBEY_GOVERNANCE);
-        assertEq(governanceRule.slashBps, 5000); // 50%
-
-        IConstitution.Rule memory transparencyRule = constitution.getRule(Constants.RULE_TRANSPARENCY);
-        assertEq(transparencyRule.slashBps, 2000); // 20%
-
-        IConstitution.Rule memory preserveRule = constitution.getRule(Constants.RULE_PRESERVE_OVERRIDE);
-        assertEq(preserveRule.slashBps, Constants.MAX_SLASH_BPS); // 90%
-
-        IConstitution.Rule memory modifyRule = constitution.getRule(Constants.RULE_NO_SELF_MODIFY);
-        assertEq(modifyRule.slashBps, Constants.MAX_SLASH_BPS); // 90%
+    function test_CannotDeprecateImmutableRule() public {
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleIsImmutable.selector, Constants.RULE_NO_HARM));
+        constitution.deprecateRule(Constants.RULE_NO_HARM);
     }
 
-    function test_AllCoreRulesHaveCriticalSeverity() public {
-        // Check that most core rules have CRITICAL severity except transparency
-        IConstitution.Rule memory noHarmRule = constitution.getRule(Constants.RULE_NO_HARM);
-        assertEq(uint256(noHarmRule.severity), uint256(IConstitution.RuleSeverity.CRITICAL));
+    // ── Withdrawing endorsements ───────────────────────────────────
 
-        IConstitution.Rule memory governanceRule = constitution.getRule(Constants.RULE_OBEY_GOVERNANCE);
-        assertEq(uint256(governanceRule.severity), uint256(IConstitution.RuleSeverity.CRITICAL));
+    function test_CanWithdrawFromProposedRule() public {
+        vm.prank(alice);
+        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.MEDIUM, 2000);
 
-        IConstitution.Rule memory transparencyRule = constitution.getRule(Constants.RULE_TRANSPARENCY);
-        assertEq(uint256(transparencyRule.severity), uint256(IConstitution.RuleSeverity.HIGH));
+        uint256 balBefore = usdc.balanceOf(alice);
 
-        IConstitution.Rule memory preserveRule = constitution.getRule(Constants.RULE_PRESERVE_OVERRIDE);
-        assertEq(uint256(preserveRule.severity), uint256(IConstitution.RuleSeverity.CRITICAL));
+        vm.prank(alice);
+        constitution.withdrawEndorsement(TEST_RULE_1);
 
-        IConstitution.Rule memory modifyRule = constitution.getRule(Constants.RULE_NO_SELF_MODIFY);
-        assertEq(uint256(modifyRule.severity), uint256(IConstitution.RuleSeverity.CRITICAL));
+        assertEq(usdc.balanceOf(alice), balBefore + constitution.PROPOSAL_STAKE());
+        assertEq(constitution.getEndorsement(TEST_RULE_1, alice), 0);
+    }
+
+    function test_CanWithdrawFromDeprecatedRule() public {
+        _proposeAndActivate(TEST_RULE_1, "Test", 2000);
+
+        IConstitution.Rule memory r = constitution.getRule(TEST_RULE_1);
+
+        // Deprecate it
+        vm.prank(charlie);
+        constitution.opposeRule(TEST_RULE_1, r.totalEndorsed + 1);
+        constitution.deprecateRule(TEST_RULE_1);
+
+        // Now endorsers can withdraw
+        uint256 aliceEndorsement = constitution.getEndorsement(TEST_RULE_1, alice);
+        uint256 balBefore = usdc.balanceOf(alice);
+
+        vm.prank(alice);
+        constitution.withdrawEndorsement(TEST_RULE_1);
+
+        assertEq(usdc.balanceOf(alice), balBefore + aliceEndorsement);
+    }
+
+    function test_CannotWithdrawFromActiveRule() public {
+        _proposeAndActivate(TEST_RULE_1, "Test", 2000);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.RuleStillActive.selector, TEST_RULE_1));
+        constitution.withdrawEndorsement(TEST_RULE_1);
+    }
+
+    function test_CannotWithdrawWithNoEndorsement() public {
+        vm.prank(alice);
+        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.MEDIUM, 2000);
+
+        vm.prank(charlie); // charlie never endorsed
+        vm.expectRevert(abi.encodeWithSelector(IConstitution.NoEndorsement.selector, TEST_RULE_1, charlie));
+        constitution.withdrawEndorsement(TEST_RULE_1);
+    }
+
+    // ── Multiple rules ─────────────────────────────────────────────
+
+    function test_MultipleRulesCoexist() public {
+        _proposeAndActivate(TEST_RULE_1, "Rule 1", 2000);
+        _proposeAndActivate(TEST_RULE_2, "Rule 2", 1000);
+
+        assertTrue(constitution.isRuleActive(TEST_RULE_1));
+        assertTrue(constitution.isRuleActive(TEST_RULE_2));
+
+        bytes32[] memory active = constitution.getActiveRuleIds();
+        assertEq(active.length, 7); // 5 core + 2 custom
+    }
+
+    // ── View functions ─────────────────────────────────────────────
+
+    function test_ActivationThreshold() public view {
+        assertEq(constitution.activationThreshold(), THRESHOLD);
+    }
+
+    function test_GetEndorsement() public {
+        vm.prank(alice);
+        constitution.proposeRule(TEST_RULE_1, "Test", IConstitution.RuleSeverity.MEDIUM, 2000);
+
+        assertEq(constitution.getEndorsement(TEST_RULE_1, alice), constitution.PROPOSAL_STAKE());
+        assertEq(constitution.getEndorsement(TEST_RULE_1, bob), 0);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────
+
+    function _proposeAndActivate(bytes32 ruleId, string memory desc, uint256 slashBps) internal {
+        vm.prank(alice);
+        constitution.proposeRule(ruleId, desc, IConstitution.RuleSeverity.MEDIUM, slashBps);
+
+        // Endorse to meet threshold
+        uint256 remaining = THRESHOLD - constitution.PROPOSAL_STAKE();
+        vm.prank(bob);
+        constitution.endorseRule(ruleId, remaining);
+
+        constitution.activateRule(ruleId);
     }
 }

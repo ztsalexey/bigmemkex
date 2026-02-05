@@ -71,6 +71,11 @@ contract AgentConstitutionHandler is Test {
             vm.prank(user);
             usdc.approve(address(tribunal), type(uint256).max);
         }
+
+        // Fund admin for Constitution rule proposals
+        usdc.mint(_admin, 100_000_000e6);
+        vm.prank(_admin);
+        usdc.approve(address(_constitution), type(uint256).max);
     }
 
     /// @notice Register a new agent
@@ -183,37 +188,39 @@ contract AgentConstitutionHandler is Test {
         vm.stopPrank();
     }
 
-    /// @notice Create and activate a new rule (as admin)
+    /// @notice Create and activate a new rule (as human proposer)
     function createCustomRule(
         uint256 ruleSeed,
         uint256 slashBpsSeed
     ) external {
-        vm.startPrank(admin);
-        
         bytes32 ruleId = keccak256(abi.encodePacked("CUSTOM_RULE", ruleSeed));
-        if (constitution.isRuleActive(ruleId)) {
-            vm.stopPrank();
-            return;
-        }
+        if (constitution.isRuleActive(ruleId)) return;
         
         uint256 slashBps = bound(slashBpsSeed, 100, Constants.MAX_SLASH_BPS);
-        
+
+        // admin is human (not an agent operator) — can propose
+        vm.startPrank(admin);
         try constitution.proposeRule(
             ruleId,
             "Custom rule for invariant testing",
             IConstitution.RuleSeverity.MEDIUM,
             slashBps
         ) {
+            // Endorse to meet threshold
+            uint256 threshold = constitution.activationThreshold();
+            uint256 proposalStake = constitution.PROPOSAL_STAKE();
+            if (threshold > proposalStake) {
+                try constitution.endorseRule(ruleId, threshold - proposalStake) {
+                    // Now try to activate
+                } catch {}
+            }
+            vm.stopPrank();
             try constitution.activateRule(ruleId) {
                 customRuleIds.push(ruleId);
-            } catch {
-                // Activation failed
-            }
+            } catch {}
         } catch {
-            // Proposal failed
+            vm.stopPrank();
         }
-        
-        vm.stopPrank();
     }
 
     /// @notice Get total USDC held by AgentRegistry
@@ -272,11 +279,11 @@ contract AgentConstitutionInvariantTest is StdInvariant, Test {
     address judge = makeAddr("judge");
 
     function setUp() public {
-        // Deploy core contracts
+        // Deploy core contracts (AgentRegistry first — Constitution depends on it)
         usdc = new MockUSDC();
         identityRegistry = new MockIdentityRegistry();
-        constitution = new Constitution(admin);
         agentRegistry = new AgentRegistry(address(usdc), address(identityRegistry), admin);
+        constitution = new Constitution(address(usdc), address(agentRegistry), 1_000e6);
         tribunal = new Tribunal(address(constitution), address(agentRegistry), address(usdc));
 
         // Setup roles

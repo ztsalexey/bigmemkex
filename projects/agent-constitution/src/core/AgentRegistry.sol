@@ -29,6 +29,7 @@ contract AgentRegistry is AccessControl, Pausable, ReentrancyGuard, IAgentRegist
 
     // ── State ──────────────────────────────────────────────────────
     mapping(uint256 => AgentProfile) private _agents;
+    mapping(address => bool) private _isOperator;
     uint256 private _totalBound;
 
     // ── Events ─────────────────────────────────────────────────────
@@ -103,6 +104,7 @@ contract AgentRegistry is AccessControl, Pausable, ReentrancyGuard, IAgentRegist
         });
 
         _totalBound++;
+        _isOperator[operator] = true;
 
         emit AgentRegistered(agentId, operator, name, tier, stakeAmount);
         emit AgentBound(agentId, operator, tier, stakeAmount);
@@ -149,6 +151,7 @@ contract AgentRegistry is AccessControl, Pausable, ReentrancyGuard, IAgentRegist
         });
 
         _totalBound++;
+        _isOperator[identityOwner] = true;
 
         emit AgentRegistered(agentId, identityOwner, name, tier, stakeAmount);
         emit AgentBound(agentId, identityOwner, tier, stakeAmount);
@@ -236,6 +239,13 @@ contract AgentRegistry is AccessControl, Pausable, ReentrancyGuard, IAgentRegist
 
     function totalAgents() external view returns (uint256) {
         return _totalBound;
+    }
+
+    /// @notice Check if an address is an agent operator (i.e., is an agent, not a human)
+    /// @param addr Address to check
+    /// @return true if the address operates at least one registered agent
+    function isOperator(address addr) external view returns (bool) {
+        return _isOperator[addr];
     }
 
     // ── Admin ──────────────────────────────────────────────────────

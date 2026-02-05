@@ -32,14 +32,16 @@ contract Deploy is Script {
 
         vm.startBroadcast();
 
-        // 1. Constitution — immutable safety rules
-        Constitution constitution = new Constitution(deployer);
-        console.log("Constitution:", address(constitution));
-
-        // 2. Agent Registry — staking layer on top of ERC-8004 identity
+        // 1. Agent Registry — staking layer on top of ERC-8004 identity (deploy first, Constitution needs it)
         AgentRegistry registry = new AgentRegistry(usdc, identityRegistry, deployer);
         console.log("AgentRegistry:", address(registry));
         console.log("  -> ERC-8004 Identity:", identityRegistry);
+
+        // 2. Constitution — open human-governed rules engine
+        //    Activation threshold: 1000 USDC endorsement to activate a rule
+        uint256 activationThreshold = 1_000e6;
+        Constitution constitution = new Constitution(usdc, address(registry), activationThreshold);
+        console.log("Constitution:", address(constitution));
 
         // 3. Action Log — audit trail
         ActionLog actionLog = new ActionLog(address(registry), deployer);
