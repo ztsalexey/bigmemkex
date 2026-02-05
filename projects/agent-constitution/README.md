@@ -176,11 +176,15 @@ The difference: Asimov's laws were embedded in positronic brains with no overrid
 
 | Contract | Address |
 |---|---|
-| AgentRegistry | `TBD` |
-| Constitution | `TBD` |
-| Tribunal | `TBD` |
-| ActionLog | `TBD` |
-| KillSwitch | `TBD` |
+| AgentRegistry | [`0xcCFc2B8274ffb579A9403D85ee3128974688C04B`](https://sepolia.basescan.org/address/0xcCFc2B8274ffb579A9403D85ee3128974688C04B) |
+| Constitution | [`0xe4c4d101849f70B0CDc2bA36caf93e9c8c1d26D2`](https://sepolia.basescan.org/address/0xe4c4d101849f70B0CDc2bA36caf93e9c8c1d26D2) |
+| ActionLog | [`0xEB5377b5e245bBc255925705dA87969E27be6488`](https://sepolia.basescan.org/address/0xEB5377b5e245bBc255925705dA87969E27be6488) |
+| Tribunal | [`0xf7c03E91516eC60dF1d609E00E1A3bb93F52A693`](https://sepolia.basescan.org/address/0xf7c03E91516eC60dF1d609E00E1A3bb93F52A693) |
+| KillSwitch | [`0x6324A4640DA739EEA64013912b781125A76D7D87`](https://sepolia.basescan.org/address/0x6324A4640DA739EEA64013912b781125A76D7D87) |
+
+**Deployment TX:** [`see broadcast`](https://sepolia.basescan.org/address/0x67819d060245FDe2ea97473e74dc7267240a6797)
+**USDC (testnet):** `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
+**ERC-8004 Identity Registry:** `0x8004A818BFB912233c491871b3d84c89A494BD9e`
 
 ## Quick Start
 
