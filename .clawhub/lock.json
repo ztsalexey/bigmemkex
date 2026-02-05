@@ -16,6 +16,10 @@
     "create-plugin": {
       "version": "0.1.0",
       "installedAt": 1770230708549
+    },
+    "usdc-hackathon": {
+      "version": "1.0.4",
+      "installedAt": 1770252300990
     }
   }
 }
