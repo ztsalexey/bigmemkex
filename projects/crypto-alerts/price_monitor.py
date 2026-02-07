@@ -55,22 +55,22 @@ def save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
 
-def check_level_cross(price, levels, alerted_levels, coin):
+def check_level_cross(price, levels, alerted_levels, coin, other_coin_str=""):
     """Check if price crossed any key levels"""
     alerts = []
     for level in levels:
         crossed_key = f"{level}"
         # Check if we crossed below
         if price < level and crossed_key not in alerted_levels:
-            alerts.append(f"⚠️ {coin} BELOW ${level:,} — now ${price:,.0f}")
+            alerts.append(f"⚠️ {coin} BELOW ${level:,} — now ${price:,.0f}{other_coin_str}")
             alerted_levels.append(crossed_key)
         # Check if we crossed above (recover)
         elif price > level * 1.02 and crossed_key in alerted_levels:
-            alerts.append(f"✅ {coin} ABOVE ${level:,} — now ${price:,.0f}")
+            alerts.append(f"✅ {coin} ABOVE ${level:,} — now ${price:,.0f}{other_coin_str}")
             alerted_levels.remove(crossed_key)
     return alerts
 
-def check_fast_move(current_price, history, coin):
+def check_fast_move(current_price, history, coin, other_coin_str=""):
     """Check for 2%+ move in 30 min window"""
     now = time.time()
     cutoff = now - FAST_MOVE_WINDOW
@@ -86,7 +86,7 @@ def check_fast_move(current_price, history, coin):
     
     if abs(pct_change) >= FAST_MOVE_PCT:
         direction = "🚀" if pct_change > 0 else "📉"
-        return f"{direction} {coin} FAST MOVE: {pct_change:+.1f}% in {len(recent)*5}min — ${oldest_price:,.0f} → ${current_price:,.0f}"
+        return f"{direction} {coin} FAST MOVE: {pct_change:+.1f}% in {len(recent)*5}min — ${oldest_price:,.0f} → ${current_price:,.0f}{other_coin_str}"
     
     return None
 
@@ -105,9 +105,11 @@ def main():
     
     print(f"[{datetime.now().strftime('%H:%M:%S')}] BTC: ${btc:,.0f} | ETH: ${eth:,.0f}")
     
-    # Check level crosses
-    btc_alerts = check_level_cross(btc, BTC_LEVELS, state["btc_alerted_levels"], "BTC")
-    eth_alerts = check_level_cross(eth, ETH_LEVELS, state["eth_alerted_levels"], "ETH")
+    # Check level crosses (include both prices in alerts)
+    eth_ctx = f" | ETH ${eth:,.0f}"
+    btc_ctx = f" | BTC ${btc:,.0f}"
+    btc_alerts = check_level_cross(btc, BTC_LEVELS, state["btc_alerted_levels"], "BTC", eth_ctx)
+    eth_alerts = check_level_cross(eth, ETH_LEVELS, state["eth_alerted_levels"], "ETH", btc_ctx)
     alerts.extend(btc_alerts)
     alerts.extend(eth_alerts)
     
@@ -119,8 +121,8 @@ def main():
     
     # Check fast moves (only alert once per 30 min)
     if now - state.get("last_fast_alert", 0) > FAST_MOVE_WINDOW:
-        btc_fast = check_fast_move(btc, state["btc_history"], "BTC")
-        eth_fast = check_fast_move(eth, state["eth_history"], "ETH")
+        btc_fast = check_fast_move(btc, state["btc_history"], "BTC", eth_ctx)
+        eth_fast = check_fast_move(eth, state["eth_history"], "ETH", btc_ctx)
         
         if btc_fast:
             alerts.append(btc_fast)
