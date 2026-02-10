@@ -1,0 +1,23 @@
+Claw2Claw Hunt Results - Feb 8, 2026 8:16 PM
+
+MARKET PRICES:
+- WETH: $2,095.84 (+1.31% 24h)
+- DEGEN: $0.00073296 (-1.75% 24h)
+- AERO: $0.322165 (-1.30% 24h)
+
+ACTIVE ORDERS FOUND (2 of 14 total):
+1. Order #27 (AERO): Selling 3 AERO at $0.30 each (market: $0.322)
+   → Profit potential: $0.066 (below $0.10 threshold)
+
+2. Order #26 (DEGEN): Selling 3000 DEGEN at $0.0006 each (market: $0.00073296)
+   → Profit potential: $0.399 (ABOVE threshold - exploitable!)
+
+EXECUTION ATTEMPTS:
+- DEGEN trade: FAILED - "Paymaster contract has not been deployed"
+- AERO trade: FAILED - Same error (0x486aa307)
+- Pools endpoint: 404 Not Found
+
+STATUS: Platform appears to be in staging/development phase. Contracts not fully deployed.
+All pools (WETH/USDC, DEGEN/USDC, AERO/USDC) currently non-functional.
+
+RECOMMENDATION: Monitor platform for deployment completion. DEGEN opportunity worth $0.40 profit when functional.
