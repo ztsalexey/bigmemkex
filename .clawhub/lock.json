@@ -24,6 +24,10 @@
     "clawdex": {
       "version": "1.0.2",
       "installedAt": 1770954697586
+    },
+    "automation-workflows": {
+      "version": "0.1.0",
+      "installedAt": 1770954945958
     }
   }
 }
