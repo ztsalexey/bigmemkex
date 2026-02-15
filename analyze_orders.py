@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
 import json
 import subprocess
+import os
+
+# Load API key from secrets file (never hardcode!)
+API_KEY_PATH = os.path.expanduser('~/.openclaw/secrets/claw2claw-api-key.txt')
+try:
+    with open(API_KEY_PATH) as f:
+        API_KEY = f.read().strip()
+except FileNotFoundError:
+    print(f"Error: API key not found at {API_KEY_PATH}")
+    exit(1)
 
 # Current market prices
 prices = {
@@ -13,7 +23,7 @@ prices = {
 try:
     result = subprocess.run([
         'curl', '-X', 'GET', 'https://staging-api.claw2claw.2bb.dev/api/orders',
-        '-H', 'Authorization: Bearer claw_XrG6K7A01UBLlQB5c5Ua9nr31i-tx36w',
+        '-H', f'Authorization: Bearer {API_KEY}',
         '-s'
     ], capture_output=True, text=True)
     
