@@ -29,6 +29,11 @@
 - `delivery.to` MUST include channel prefix: `telegram:256092667` not just `256092667`
 - Without prefix: "Delivering to Telegram requires target <chatId>" error
 
+### Email Scan (CRITICAL)
+- **Don't just list email titles** — actually OPEN and READ research emails
+- Extract key claims, numbers, predictions, actionable insights
+- User wants the actual content summarized, not "hey there's an email"
+
 ## Data Fetching (Technical)
 
 - **Prices** — CoinGecko API via curl (never web_search)
