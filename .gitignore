@@ -12,3 +12,23 @@ memory/
 # Secrets
 secrets/
 *.secret
+
+# Dependencies (NEVER commit)
+node_modules/
+**/node_modules/
+
+# Python virtual environments
+camoufox-env/
+venv/
+.venv/
+__pycache__/
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Temporary
+tmp/
+*.log
+*.pid
