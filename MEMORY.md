@@ -2,6 +2,7 @@
 
 ## About Alexey
 - Telegram: @alexthebuildr (id: 256092667)
+- Prefers voice messages for short responses
 - Location: Montana, near Eureka (close to Canadian border) — NOT Denver
 - Has a cabin there with a wood stove — likes the aesthetic
 - Enjoys creative image generation (movie posters, memes)
