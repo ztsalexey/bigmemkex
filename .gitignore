@@ -32,3 +32,8 @@ build/
 tmp/
 *.log
 *.pid
+# Runtime state files
+*.state.json
+**/price_state.json
+**/.connect.log
+**/.connect.pid
