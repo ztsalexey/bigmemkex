@@ -34,6 +34,13 @@
 - Extract key claims, numbers, predictions, actionable insights
 - User wants the actual content summarized, not "hey there's an email"
 
+### Briefing Format (CRITICAL)
+- Use clean, scannable format with section headers
+- Separate sources with --- dividers
+- Bold key numbers and insights
+- Use emoji sparingly for visual breaks (📬🔴🟢📊)
+- Keep each section tight — no walls of text
+
 ## Data Fetching (Technical)
 
 - **Prices** — CoinGecko API via curl (never web_search)
@@ -44,6 +51,11 @@
 
 ## Pending Fixes
 - Whale tracking: needs browser scraping of whale-alert.io (not CLI)
+
+## Flight Hacks from Eureka, MT
+- **Chicago/West Coast** → Spokane (GEG), 3hr drive, $200+ savings, covered parking $17/day
+- **Denver/Southwest** → Missoula (MSO), 2.5hr drive, direct flights
+- Kalispell (FCA) has "remote Montana tax" — always compare
 
 ## System Notes
 - Auto-update OpenClaw without asking (user approved)
